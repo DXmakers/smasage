@@ -52,6 +52,8 @@ pub enum DataKey {
     UsdcTokenAddress,
     /// Total bTokens held by the contract across all users
     TotalBTokens,
+    /// Total vault deposits across all users (in USDC)
+    TotalVaultDeposits,
 }
 
 /// Precision factor for index rate calculations (6 decimal places)
@@ -77,6 +79,70 @@ impl SmasageYieldRouter {
     /// Get the USDC token address
     pub fn get_usdc_token(env: Env) -> Option<Address> {
         env.storage().persistent().get(&DataKey::UsdcTokenAddress)
+    }
+
+    /// Deposit USDC into the vault
+    /// 
+    /// This is the primary vault deposit function that:
+    /// - Requires cryptographic authorization from the sender
+    /// - Transfers USDC tokens from user to contract
+    /// - Tracks individual user balances
+    /// - Updates total protocol deposits
+    /// 
+    /// # Arguments
+    /// * `from` - The address making the deposit (must authorize the transaction)
+    /// * `amount` - The amount of USDC to deposit (must be > 0)
+    /// 
+    /// # Panics
+    /// - If `amount` is not positive
+    /// - If USDC token is not initialized
+    /// - If token transfer fails (insufficient balance, approval, etc.)
+    pub fn vault_deposit(env: Env, from: Address, amount: i128) {
+        // 1. Authorization: Require cryptographic signature from the sender
+        from.require_auth();
+        
+        // 2. Input validation
+        assert!(amount > 0, "Deposit amount must be greater than 0");
+        
+        // 3. Transfer USDC tokens from user to contract
+        Self::transfer_usdc_from_user(&env, &from, amount);
+        
+        // 4. Update individual user balance (vault deposit tracking)
+        let mut user_balance: i128 = env.storage().persistent()
+            .get(&DataKey::UserBalance(from.clone()))
+            .unwrap_or(0);
+        user_balance += amount;
+        env.storage().persistent().set(&DataKey::UserBalance(from.clone()), &user_balance);
+        
+        // 5. Update total vault deposits (protocol-wide tracking)
+        let mut total_deposits: i128 = env.storage().persistent()
+            .get(&DataKey::TotalVaultDeposits)
+            .unwrap_or(0);
+        total_deposits += amount;
+        env.storage().persistent().set(&DataKey::TotalVaultDeposits, &total_deposits);
+    }
+
+    /// Get total vault deposits across all users
+    /// 
+    /// # Returns
+    /// The total amount of USDC deposited into the vault (in USDC)
+    pub fn get_total_vault_deposits(env: Env) -> i128 {
+        env.storage().persistent()
+            .get(&DataKey::TotalVaultDeposits)
+            .unwrap_or(0)
+    }
+
+    /// Get a user's vault balance
+    /// 
+    /// # Arguments
+    /// * `user` - The address to check
+    /// 
+    /// # Returns
+    /// The user's vault balance in USDC
+    pub fn get_vault_balance(env: Env, user: Address) -> i128 {
+        env.storage().persistent()
+            .get(&DataKey::UserBalance(user))
+            .unwrap_or(0)
     }
 
     /// Supply USDC to the Blend Protocol and receive bTokens
@@ -280,14 +346,17 @@ impl SmasageYieldRouter {
 
     /// Initialize the contract and accept deposits in USDC.
     /// Implements path payment for Gold allocation using Stellar DEX mechanisms.
+    /// 
+    /// This function is kept for backward compatibility. New code should use vault_deposit()
+    /// for simple deposits, or combine vault_deposit() with supply_to_blend() for complex allocation.
     pub fn deposit(env: Env, from: Address, amount: i128, blend_percentage: u32, lp_percentage: u32, gold_percentage: u32) {
         from.require_auth();
         assert!(blend_percentage + lp_percentage + gold_percentage <= 100, "Allocation exceeds 100%");
         
-        let mut balance: i128 = env.storage().persistent().get(&DataKey::UserBalance(from.clone())).unwrap_or(0);
-        balance += amount;
-        env.storage().persistent().set(&DataKey::UserBalance(from.clone()), &balance);
+        // First, perform the base vault deposit (transfers USDC and tracks balance)
+        Self::vault_deposit(env.clone(), from.clone(), amount);
         
+        // Then handle allocations across different protocols
         // Track Blend allocation
         let blend_amount = amount * blend_percentage as i128 / 100;
         let mut blend_balance: i128 = env.storage().persistent().get(&DataKey::UserBlendBalance(from.clone())).unwrap_or(0);
@@ -896,6 +965,185 @@ mod test {
 
         // Supply 1000 USDC to Blend
         client.supply_to_blend(&user, &1000);
+
+        // Verify position before withdraw
+        let position_before = client.get_blend_position(&user);
+        assert_eq!(position_before.b_tokens, 1000);
+    }
+
+    // ============================================
+    // Vault Deposit Tests
+    // ============================================
+
+    #[test]
+    fn test_vault_deposit_success() {
+        let env = Env::default();
+        
+        // Register contracts
+        let contract_id = env.register_contract(None, SmasageYieldRouter);
+        let client = SmasageYieldRouterClient::new(&env, &contract_id);
+        
+        let token_id = env.register_contract(None, MockToken);
+        let token_client = MockTokenClient::new(&env, &token_id);
+        
+        // Create addresses
+        let user = Address::generate(&env);
+        let blend_pool = Address::generate(&env);
+
+        env.mock_all_auths();
+
+        // Initialize token and mint to user
+        token_client.initialize(&user);
+        token_client.mint(&user, &10000);
+
+        // Initialize main contract
+        client.initialize(&blend_pool, &token_id);
+
+        // Deposit 1000 USDC via vault_deposit
+        client.vault_deposit(&user, &1000);
+
+        // Verify user balance was updated
+        assert_eq!(client.get_vault_balance(&user), 1000);
+
+        // Verify total vault deposits was updated
+        assert_eq!(client.get_total_vault_deposits(), 1000);
+    }
+
+    #[test]
+    fn test_vault_deposit_multiple_users() {
+        let env = Env::default();
+        
+        // Register contracts
+        let contract_id = env.register_contract(None, SmasageYieldRouter);
+        let client = SmasageYieldRouterClient::new(&env, &contract_id);
+        
+        let token_id = env.register_contract(None, MockToken);
+        let token_client = MockTokenClient::new(&env, &token_id);
+        
+        // Create addresses
+        let user1 = Address::generate(&env);
+        let user2 = Address::generate(&env);
+        let blend_pool = Address::generate(&env);
+
+        env.mock_all_auths();
+
+        // Initialize token and mint to users
+        token_client.initialize(&user1);
+        token_client.mint(&user1, &10000);
+        token_client.initialize(&user2);
+        token_client.mint(&user2, &10000);
+
+        // Initialize main contract
+        client.initialize(&blend_pool, &token_id);
+
+        // User 1 deposits 1000
+        client.vault_deposit(&user1, &1000);
+        
+        // User 2 deposits 500
+        client.vault_deposit(&user2, &500);
+
+        // Verify individual balances
+        assert_eq!(client.get_vault_balance(&user1), 1000);
+        assert_eq!(client.get_vault_balance(&user2), 500);
+
+        // Verify total vault deposits
+        assert_eq!(client.get_total_vault_deposits(), 1500);
+    }
+
+    #[test]
+    fn test_vault_deposit_accumulation() {
+        let env = Env::default();
+        
+        // Register contracts
+        let contract_id = env.register_contract(None, SmasageYieldRouter);
+        let client = SmasageYieldRouterClient::new(&env, &contract_id);
+        
+        let token_id = env.register_contract(None, MockToken);
+        let token_client = MockTokenClient::new(&env, &token_id);
+        
+        // Create addresses
+        let user = Address::generate(&env);
+        let blend_pool = Address::generate(&env);
+
+        env.mock_all_auths();
+
+        // Initialize token and mint to user
+        token_client.initialize(&user);
+        token_client.mint(&user, &50000);
+
+        // Initialize main contract
+        client.initialize(&blend_pool, &token_id);
+
+        // Make multiple deposits
+        client.vault_deposit(&user, &1000);
+        assert_eq!(client.get_vault_balance(&user), 1000);
+        assert_eq!(client.get_total_vault_deposits(), 1000);
+
+        client.vault_deposit(&user, &2000);
+        assert_eq!(client.get_vault_balance(&user), 3000);
+        assert_eq!(client.get_total_vault_deposits(), 3000);
+
+        client.vault_deposit(&user, &5000);
+        assert_eq!(client.get_vault_balance(&user), 8000);
+        assert_eq!(client.get_total_vault_deposits(), 8000);
+    }
+
+    #[test]
+    #[should_panic(expected = "Deposit amount must be greater than 0")]
+    fn test_vault_deposit_zero_amount() {
+        let env = Env::default();
+        
+        // Register contracts
+        let contract_id = env.register_contract(None, SmasageYieldRouter);
+        let client = SmasageYieldRouterClient::new(&env, &contract_id);
+        
+        let token_id = env.register_contract(None, MockToken);
+        let token_client = MockTokenClient::new(&env, &token_id);
+        
+        // Create addresses
+        let user = Address::generate(&env);
+        let blend_pool = Address::generate(&env);
+
+        env.mock_all_auths();
+
+        // Initialize token
+        token_client.initialize(&user);
+
+        // Initialize main contract
+        client.initialize(&blend_pool, &token_id);
+
+        // Attempt to deposit 0 - should panic
+        client.vault_deposit(&user, &0);
+    }
+
+    #[test]
+    #[should_panic(expected = "Deposit amount must be greater than 0")]
+    fn test_vault_deposit_negative_amount() {
+        let env = Env::default();
+        
+        // Register contracts
+        let contract_id = env.register_contract(None, SmasageYieldRouter);
+        let client = SmasageYieldRouterClient::new(&env, &contract_id);
+        
+        let token_id = env.register_contract(None, MockToken);
+        let token_client = MockTokenClient::new(&env, &token_id);
+        
+        // Create addresses
+        let user = Address::generate(&env);
+        let blend_pool = Address::generate(&env);
+
+        env.mock_all_auths();
+
+        // Initialize token
+        token_client.initialize(&user);
+
+        // Initialize main contract
+        client.initialize(&blend_pool, &token_id);
+
+        // Attempt to deposit negative - should panic
+        client.vault_deposit(&user, &-1000);
+    }
+}
 
         // Increase index rate to 1.10 (10% yield)
         let new_index_rate = INDEX_RATE_PRECISION + (INDEX_RATE_PRECISION * 10 / 100); // 1.10
