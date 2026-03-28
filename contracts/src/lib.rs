@@ -1,4 +1,7 @@
 #![no_std]
+use soroban_sdk::{
+    contract, contractimpl, contracttype, symbol_short, Address, Env, String, Symbol,
+};
 use soroban_sdk::{contract, contractimpl, contracttype, Env, Address};
 use soroban_sdk::token::TokenClient;
 
@@ -39,8 +42,18 @@ pub struct BlendPosition {
 
 #[contracttype]
 pub enum DataKey {
+    Admin,
     UserBalance(Address),
     TotalDeposits,
+    GoldAssetCode,
+    GoldAssetIssuer,
+    GoldTrustlineReady,
+    GoldTrustlineReserveStroops,
+}
+
+const CANONICAL_GOLD_ASSET_CODE: Symbol = symbol_short!("XAUT");
+const CANONICAL_GOLD_ASSET_ISSUER: &str = "GCRLXTLD7XIRXWXV2PDCC74O5TUUKN3OODJAM6TWVE4AIRNMGQJK3KWQ";
+const TRUSTLINE_BASE_RESERVE_STROOPS: i128 = 5_000_000;
     UserBlendBalance(Address),
     UserLPShares(Address),
     UserGoldBalance(Address),
@@ -62,6 +75,69 @@ pub struct SmasageYieldRouter;
 
 #[contractimpl]
 impl SmasageYieldRouter {
+    pub fn initialize(env: Env, admin: Address) {
+        if env.storage().persistent().has(&DataKey::Admin) {
+            panic!("Already initialized");
+        }
+        admin.require_auth();
+        env.storage().persistent().set(&DataKey::Admin, &admin);
+    }
+
+    pub fn init_gold_trustline(env: Env, admin: Address, reserve_stroops: i128) {
+        let stored_admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .expect("Contract not initialized");
+
+        assert!(admin == stored_admin, "Only admin can initialize Gold trustline");
+        admin.require_auth();
+        assert!(
+            reserve_stroops >= TRUSTLINE_BASE_RESERVE_STROOPS,
+            "Insufficient base reserve for trustline"
+        );
+
+        let gold_issuer = String::from_str(&env, CANONICAL_GOLD_ASSET_ISSUER);
+        env.storage()
+            .persistent()
+            .set(&DataKey::GoldAssetCode, &CANONICAL_GOLD_ASSET_CODE);
+        env.storage()
+            .persistent()
+            .set(&DataKey::GoldAssetIssuer, &gold_issuer);
+        env.storage()
+            .persistent()
+            .set(&DataKey::GoldTrustlineReserveStroops, &reserve_stroops);
+        env.storage()
+            .persistent()
+            .set(&DataKey::GoldTrustlineReady, &true);
+    }
+
+    pub fn get_gold_asset(env: Env) -> (Symbol, String) {
+        let code = env
+            .storage()
+            .persistent()
+            .get(&DataKey::GoldAssetCode)
+            .unwrap_or(CANONICAL_GOLD_ASSET_CODE);
+        let issuer = env
+            .storage()
+            .persistent()
+            .get(&DataKey::GoldAssetIssuer)
+            .unwrap_or(String::from_str(&env, CANONICAL_GOLD_ASSET_ISSUER));
+        (code, issuer)
+    }
+
+    pub fn is_gold_trustline_ready(env: Env) -> bool {
+        env.storage()
+            .persistent()
+            .get(&DataKey::GoldTrustlineReady)
+            .unwrap_or(false)
+    }
+
+    pub fn get_gold_reserve_stroops(env: Env) -> i128 {
+        env.storage()
+            .persistent()
+            .get(&DataKey::GoldTrustlineReserveStroops)
+            .unwrap_or(0)
     /// Initialize the contract with Blend pool and USDC token addresses
     pub fn initialize(env: Env, blend_pool: Address, usdc_token: Address) {
         env.storage().persistent().set(&DataKey::BlendPoolAddress, &blend_pool);
@@ -466,6 +542,30 @@ impl SmasageYieldRouter {
 #[cfg(test)]
 mod test {
     use super::*;
+    use soroban_sdk::{testutils::Address as _, Env, String};
+
+    #[test]
+    fn test_initialize_gold_trustline() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, SmasageYieldRouter);
+        let client = SmasageYieldRouterClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+
+        env.mock_all_auths();
+
+        client.initialize(&admin);
+        client.init_gold_trustline(&admin, &5_000_000);
+
+        let (asset_code, asset_issuer) = client.get_gold_asset();
+        assert_eq!(asset_code, symbol_short!("XAUT"));
+        assert_eq!(
+            asset_issuer,
+            String::from_str(&env, "GCRLXTLD7XIRXWXV2PDCC74O5TUUKN3OODJAM6TWVE4AIRNMGQJK3KWQ")
+        );
+        assert!(client.is_gold_trustline_ready());
+        assert_eq!(client.get_gold_reserve_stroops(), 5_000_000);
+    }
     use soroban_sdk::{testutils::Address as _, Env, Symbol};
 
     #[test]
@@ -475,9 +575,14 @@ mod test {
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
 
         let user = Address::generate(&env);
+        let admin = Address::generate(&env);
         
         env.mock_all_auths();
 
+        client.initialize(&admin);
+
+        // 60% Blend, 30% LP, 10% Gold (mocked conceptually)
+        client.deposit(&user, &1000, &60, &30);
         // 60% Blend, 30% LP, 10% Gold
         client.deposit(&user, &1000, &60, &30, &10);
         
