@@ -228,15 +228,6 @@ impl SmasageYieldRouter {
             .unwrap_or(0)
     }
 
-    /// Supply USDC to the Blend Protocol and receive bTokens
-    /// 
-    /// # Arguments
-    /// * `from` - The address supplying the assets
-    /// * `amount` - The amount of USDC to supply
-    /// 
-    /// # Returns
-    /// The amount of bTokens received
-    pub fn supply_to_blend(env: Env, from: Address, amount: i128) -> i128 {
     /// Initialize the contract and accept deposits in USDC.
     /// Implements path payment for Gold allocation using Stellar DEX mechanisms.
     pub fn deposit(
