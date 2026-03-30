@@ -759,6 +759,16 @@ mod test {
         // Verify position before withdraw
         let position_before = client.get_blend_position(&user);
         assert_eq!(position_before.b_tokens, 1000);
+
+        // Increase index rate to 1.10 (10% yield)
+        let new_index_rate = INDEX_RATE_PRECISION + (INDEX_RATE_PRECISION * 10 / 100); // 1.10
+        client.set_mock_index_rate(&new_index_rate);
+
+        // Withdraw all bTokens
+        let usdc_received = client.withdraw_from_blend(&user, &0);
+
+        // Should receive 1100 USDC (1000 + 10% yield)
+        assert_eq!(usdc_received, 1100);
     }
 
     // ============================================
@@ -932,18 +942,6 @@ mod test {
 
         // Attempt to deposit negative - should panic
         client.vault_deposit(&user, &-1000);
-    }
-}
-
-        // Increase index rate to 1.10 (10% yield)
-        let new_index_rate = INDEX_RATE_PRECISION + (INDEX_RATE_PRECISION * 10 / 100); // 1.10
-        client.set_mock_index_rate(&new_index_rate);
-
-        // Withdraw all bTokens
-        let usdc_received = client.withdraw_from_blend(&user, &0);
-
-        // Should receive 1100 USDC (1000 + 10% yield)
-        assert_eq!(usdc_received, 1100);
     }
 
     #[test]
