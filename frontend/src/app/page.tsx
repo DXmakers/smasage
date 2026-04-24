@@ -9,7 +9,7 @@ import type { AssetAllocation } from '../utils/chartUtils';
 import { useNotifications } from '../hooks/useNotifications';
 import { DashboardHeader } from './components/DashboardHeader';
 import { ConnectWalletButton } from './components/ConnectWalletButton';
-import { useWallet } from './components/WalletContext';
+import { useFreighter } from '../hooks/useFreighter';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 interface Message {
@@ -21,21 +21,13 @@ interface Message {
 }
 
 export default function Home() {
-  const { publicKey, setPublicKey } = useWallet();
-  const [showInstallModal, setShowInstallModal] = useState(false);
-    // Connect Wallet logic
-    const handleConnectWallet = async () => {
-      if (!window.freighterApi) {
-        setShowInstallModal(true);
-        return;
-      }
-      try {
-        const key = await window.freighterApi.getPublicKey();
-        setPublicKey(key);
-      } catch (e) {
-        // Optionally handle rejection
-      }
-    };
+  const { 
+    publicKey, 
+    connect, 
+    showInstallModal, 
+    setShowInstallModal 
+  } = useFreighter();
+
   const [messages, setMessages] = useState<Message[]>([
     { id: 1, sender: 'agent', text: "Welcome to Smasage! 👋 I'm OpenClaw, your personal AI savings assistant natively built on Stellar. What financial goal can we crush today?" }
   ]);
@@ -144,7 +136,7 @@ export default function Home() {
     <ErrorBoundary fallbackMessage="The dashboard failed to load. Please try again.">
       <>
         <DashboardHeader wsConnected={wsConnected}>
-          <ConnectWalletButton onClick={handleConnectWallet} publicKey={publicKey || undefined} />
+          <ConnectWalletButton onClick={connect} publicKey={publicKey || undefined} />
         </DashboardHeader>
         {showInstallModal && (
           <div className="modal-overlay">
