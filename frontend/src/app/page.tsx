@@ -21,6 +21,10 @@ import {
 } from "../utils/allocationParser";
 import type { AssetAllocation } from "../utils/chartUtils";
 import { useNotifications } from "../hooks/useNotifications";
+import {
+  isAgentMessageNotification,
+  isConnectedNotification,
+} from "../types/websocket";
 import { DashboardHeader } from "./components/DashboardHeader";
 import { ConnectWalletButton } from "./components/ConnectWalletButton";
 import { useFreighter } from "../hooks/useFreighter";
@@ -89,23 +93,24 @@ export default function Home() {
   const { registerGoal } = useNotifications({
     userId: "user-demo-001",
     onNotification: (notification) => {
-      if (notification.type === "connected") {
+      if (isConnectedNotification(notification)) {
         console.log("[App] Connected to notification server");
         setWsConnected(true);
         setIsLoading(false);
-      } else if (notification.type === "agent-message") {
-        const payload = notification.payload as { text: string; proactive?: boolean; timestamp?: string };
+      } else if (isAgentMessageNotification(notification)) {
+        // payload is fully typed as AgentMessagePayload — no cast needed
+        const { text, proactive, timestamp } = notification.payload;
         const agentMsg: Message = {
           id: Date.now(),
           sender: "agent",
-          text: payload.text,
-          proactive: payload.proactive,
-          timestamp: payload.timestamp,
+          text,
+          proactive,
+          timestamp,
         };
         setMessages((prev) => [...prev, agentMsg]);
 
         // Parse allocations if present
-        const parsedAllocations = parseAllocationsFromMessage(payload.text);
+        const parsedAllocations = parseAllocationsFromMessage(text);
         if (parsedAllocations) {
           setAllocations(parsedAllocations);
         }
