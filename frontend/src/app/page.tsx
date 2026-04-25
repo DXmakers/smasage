@@ -98,6 +98,7 @@ export default function Home() {
           timestamp: payload.timestamp,
         };
         setMessages((prev) => [...prev, agentMsg]);
+        console.log("[App] Agent message received", payload.text);
 
         // Parse allocations if present
         const parsedAllocations = parseAllocationsFromMessage(payload.text);
@@ -126,6 +127,7 @@ export default function Home() {
   // Register goal with notification server on mount
   useEffect(() => {
     if (wsConnected) {
+      console.log("[App] Registering goal...");
       registerGoal({
         currentBalance: goalData.currentBalance,
         targetAmount: goalData.targetAmount,
@@ -148,6 +150,7 @@ export default function Home() {
     setMessages((prev) => [...prev, userMsg]);
     setInputState("");
     setIsTyping(true);
+    console.log("[App] User sent message:", userMsg.text);
 
     // Mock agent response delay
     setTimeout(() => {
@@ -185,7 +188,7 @@ export default function Home() {
           {/* Left Panel - Dashboard */}
           <div className="glass-panel">
             <h1>Smasage Portfolio</h1>
-            <p className="text-muted" style={{ marginBottom: "2.5rem" }}>
+            <p className="text-muted portfolio-subtitle">
               Real-time on-chain tracking • Stellar Mainnet 🚀
             </p>
 
@@ -207,18 +210,16 @@ export default function Home() {
               <div className="goal-section skeleton-fade-in">
                 <div className="goal-header">
                   <div>
-                    <h3 style={{ fontSize: "1.25rem", marginBottom: "4px" }}>
+                    <h3 className="goal-title">
                       European Vacation
                     </h3>
-                    <p className="text-muted" style={{ fontSize: "0.9rem" }}>
+                    <p className="text-muted goal-subtitle">
                       Target: $18,000 by Aug 2026
                     </p>
                     <p
+                      className="goal-status-text"
                       style={{
-                        fontSize: "0.85rem",
                         color: getStatusColor(goalStatus),
-                        fontWeight: 600,
-                        marginTop: "4px",
                       }}
                     >
                       Status: {goalStatus}
@@ -236,15 +237,7 @@ export default function Home() {
                     style={{ width: `${progress}%` }}
                   ></div>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: "0.85rem",
-                    color: "var(--text-muted)",
-                    fontWeight: 500,
-                  }}
-                >
+                <div className="progress-stats">
                   <span>68% Completed</span>
                   <span>$5,550 Remaining</span>
                 </div>
@@ -252,16 +245,7 @@ export default function Home() {
             )}
 
             <div className="allocation-list">
-              <h3
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  fontSize: "1.1rem",
-                  marginBottom: "1.25rem",
-                  marginTop: "1rem",
-                }}
-              >
+              <h3 className="allocation-title">
                 <Activity size={18} /> Active Strategy Routes
               </h3>
 
@@ -289,18 +273,10 @@ export default function Home() {
                   <Bot size={28} />
                 </div>
                 <div>
-                  <h2 style={{ margin: 0, fontSize: "1.25rem" }}>
+                  <h2 className="chat-title">
                     OpenClaw Agent
                   </h2>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      fontSize: "0.85rem",
-                      color: "var(--success)",
-                    }}
-                  >
+                  <div className="chat-status">
                     <CheckCircle2
                       size={12}
                       fill="var(--success)"
@@ -315,18 +291,7 @@ export default function Home() {
                 {messages.map((msg) => (
                   <div key={msg.id} className={`message ${msg.sender}`}>
                     {msg.proactive && (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          fontSize: "0.75rem",
-                          color: "var(--accent-primary)",
-                          marginBottom: "4px",
-                          fontWeight: 600,
-                          textTransform: "uppercase",
-                        }}
-                      >
+                      <div className="proactive-label">
                         <AlertCircle size={12} /> Proactive Nudge
                       </div>
                     )}
