@@ -472,7 +472,9 @@ h2 {
 
 .agent .message-bubble {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border-bottom-left-radius: 4px;
   color: var(--text-main);
 }
@@ -501,7 +503,7 @@ h2 {
   border-radius: 12px;
   border-bottom-left-radius: 4px;
   width: fit-content;
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .typing-indicator span {
@@ -621,7 +623,7 @@ h2 {
   outline: none; /* replaced by explicit ring below */
   border-color: var(--accent-primary);
   background: rgba(0, 0, 0, 0.45);
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15), inset 0 0 8px rgba(139, 92, 246, 0.1);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
 }
 
 .chat-input-container input:focus-visible {
