@@ -30,6 +30,7 @@ import {
 import { WalletModalTest } from "./components/WalletModalTest";
 import { ChatInterface, type ChatMessage } from "./components/ChatInterface";
 import { goalData, initialMessages } from "../config/mockData";
+import toast from 'react-hot-toast';
 
 export default function Home() {
   const { 
@@ -79,6 +80,13 @@ export default function Home() {
         };
         setMessages((prev: ChatMessage[]) => [...prev, agentMsg]);
 
+        // Show toast for proactive messages
+        if (proactive) {
+          toast('💡 New suggestion from OpenClaw', {
+            duration: 5000,
+          });
+        }
+
         // Parse allocations if present
         const parsedAllocations = parseAllocationsFromMessage(text);
         if (parsedAllocations) {
@@ -88,6 +96,7 @@ export default function Home() {
     },
     onError: (error) => {
       console.error("[App] WebSocket error:", error);
+      toast.error('Failed to connect to notification service');
     },
     enabled: true,
   });

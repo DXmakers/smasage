@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { WalletProvider } from './components/WalletContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { Toaster } from 'react-hot-toast';
 
 export const metadata: Metadata = {
   title: 'Smasage | AI Portfolio Manager',
@@ -24,6 +25,18 @@ export default function RootLayout({
             {children}
           </ErrorBoundary>
         </WalletProvider>
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: 'rgba(255, 255, 255, 0.95)',
+              color: '#000',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              backdropFilter: 'blur(10px)',
+            },
+          }}
+        />
       </body>
     </html>
   );
