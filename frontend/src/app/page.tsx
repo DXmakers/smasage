@@ -31,12 +31,12 @@ import { WalletModal } from "./components/WalletModal";
 import { ChatInterface, type ChatMessage } from "./components/ChatInterface";
 
 export default function Home() {
-  const { 
-    publicKey, 
-    connect, 
-    showInstallModal, 
+  const {
+    publicKey,
+    connect,
+    showInstallModal,
     setShowInstallModal,
-    isConnecting 
+    isConnecting
   } = useFreighter();
 
   const [messages, setMessages] = useState<ChatMessage[]>([
