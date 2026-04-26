@@ -1,10 +1,9 @@
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
-import { Target, Activity } from "lucide-react";
+import { Activity } from "lucide-react";
 import { PortfolioStats } from "./components/PortfolioStats";
 import {
   evaluateGoalStatus,
-  getStatusColor,
   type GoalData,
 } from "../utils/goalProjection";
 import PortfolioChart from "./PortfolioChart";
@@ -32,12 +31,12 @@ import { ChatInterface, type ChatMessage } from "./components/ChatInterface";
 import { goalData, initialMessages } from "../config/mockData";
 
 export default function Home() {
-  const { 
-    publicKey, 
-    connect, 
-    showInstallModal, 
+  const {
+    publicKey,
+    connect,
+    showInstallModal,
     setShowInstallModal,
-    isConnecting 
+    isConnecting
   } = useFreighter();
 
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
@@ -179,56 +178,14 @@ export default function Home() {
             {isLoading ? (
               <GoalTrackerSkeleton />
             ) : (
-              <div className="goal-section skeleton-fade-in">
-                <div className="goal-header">
-                  <div>
-                    <h3 style={{ fontSize: "1.25rem", marginBottom: "4px" }}>
-                      European Vacation
-                    </h3>
-                    <p className="text-muted" style={{ fontSize: "0.9rem" }}>
-                      Target: $18,000 by Aug 2026
-                    </p>
-                    <p
-                      style={{
-                        fontSize: "0.85rem",
-                        color: getStatusColor(goalStatus),
-                        fontWeight: 600,
-                        marginTop: "4px",
-                      }}
-                    >
-                      Status: {goalStatus}
-                    </p>
-                  </div>
-                  <Target
-                    size={32}
-                    color={getStatusColor(goalStatus)}
-                    opacity={0.8}
-                  />
-                </div>
-                <div className="progress-bar-container">
-                  <div
-                    className="progress-bar-fill"
-                    style={{ width: `${progress}%` }}
-                    role="progressbar"
-                    aria-valuenow={Math.round(progress)}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-label="Savings goal progress"
-                  ></div>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: "0.85rem",
-                    color: "var(--text-muted)",
-                    fontWeight: 500,
-                  }}
-                >
-                  <span>68% Completed</span>
-                  <span>$5,550 Remaining</span>
-                </div>
-              </div>
+              <GoalTracker
+                goalName="European Vacation"
+                targetAmount={goalData.targetAmount}
+                targetDate={goalData.targetDate}
+                status={goalStatus}
+                progressPercentage={progress}
+                remainingAmount={goalData.targetAmount - goalData.currentBalance}
+              />
             )}
 
             <div className="allocation-list">
