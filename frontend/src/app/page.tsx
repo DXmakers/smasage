@@ -1,3 +1,32 @@
+"use client"
+import React, { useState } from 'react';
+import { Target, Activity } from 'lucide-react';
+import { PortfolioStats } from './components/PortfolioStats';
+import { evaluateGoalStatus, getStatusColor, type GoalData } from '../utils/goalProjection';
+import PortfolioChart from './PortfolioChart';
+import { DashboardHeader } from './components/DashboardHeader';
+import { ConnectWalletButton } from './components/ConnectWalletButton';
+import { useWallet } from './components/WalletContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { useChat } from '../hooks/useChat';
+import { ChatInterface } from './components/ChatInterface';
+
+export default function Home() {
+  const { publicKey, setPublicKey } = useWallet();
+  const [showInstallModal, setShowInstallModal] = useState(false);
+    // Connect Wallet logic
+    const handleConnectWallet = async () => {
+      if (!window.freighterApi) {
+        setShowInstallModal(true);
+        return;
+      }
+      try {
+        const key = await window.freighterApi.getPublicKey();
+        setPublicKey(key);
+      } catch {
+        // Optionally handle rejection
+      }
+    };
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
 import { Activity } from "lucide-react";
@@ -73,6 +102,21 @@ export default function Home() {
     };
   }, [goalData]);
 
+  // Calculate goal status
+  const goalResult = evaluateGoalStatus(goalData);
+  const progress = goalResult.progressPercentage;
+  const goalStatus = goalResult.status;
+
+  const { messages, inputState, setInputState, isTyping, handleSendMessage, allocations, wsConnected } = useChat({
+    userId: 'user-demo-001',
+    goalData,
+  });
+
+  return (
+    <ErrorBoundary fallbackMessage="The dashboard failed to load. Please try again.">
+      <>
+      <DashboardHeader wsConnected={wsConnected}>
+          <ConnectWalletButton onClick={handleConnectWallet} publicKey={publicKey || undefined} />
   // WebSocket notifications
   const { registerGoal } = useNotifications({
     userId: "user-demo-001",
@@ -233,6 +277,15 @@ export default function Home() {
             </div>
           </div>
 
+        {/* Right Panel - Chat Agent */}
+        <ChatInterface
+          messages={messages}
+          inputState={inputState}
+          setInputState={setInputState}
+          isTyping={isTyping}
+          handleSendMessage={handleSendMessage}
+        />
+      </main>
           {/* Right Panel - Chat Agent */}
           <div className="glass-panel">
             <ChatInterface
