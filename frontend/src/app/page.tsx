@@ -83,7 +83,6 @@ export default function Home() {
         setWsConnected(true);
         setIsLoading(false);
       } else if (isAgentMessageNotification(notification)) {
-        // payload is fully typed as AgentMessagePayload — no cast needed
         const { text, proactive, timestamp } = notification.payload;
         const agentMsg: ChatMessage = {
           id: Date.now(),
@@ -93,6 +92,7 @@ export default function Home() {
           timestamp,
         };
         setMessages((prev: ChatMessage[]) => [...prev, agentMsg]);
+        console.log("[App] Agent message received", text);
 
         // Parse allocations if present
         const parsedAllocations = parseAllocationsFromMessage(text);
@@ -116,6 +116,7 @@ export default function Home() {
   // Register goal with notification server on mount
   useEffect(() => {
     if (wsConnected) {
+      console.log("[App] Registering goal...");
       registerGoal({
         currentBalance: goalData.currentBalance,
         targetAmount: goalData.targetAmount,
@@ -137,6 +138,7 @@ export default function Home() {
     };
     setMessages((prev: ChatMessage[]) => [...prev, userMsg]);
     setIsTyping(true);
+    console.log("[App] User sent message:", userMsg.text);
 
     // Mock agent response delay
     setTimeout(() => {
@@ -175,7 +177,7 @@ export default function Home() {
           {/* Left Panel - Dashboard */}
           <GlassPanel>
             <h1>Smasage Portfolio</h1>
-            <p className="text-muted" style={{ marginBottom: "2.5rem" }}>
+            <p className="text-muted portfolio-subtitle">
               Real-time on-chain tracking • Stellar Mainnet 🚀
             </p>
 
@@ -205,16 +207,7 @@ export default function Home() {
             )}
 
             <div className="allocation-list">
-              <h3
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  fontSize: "1.1rem",
-                  marginBottom: "1.25rem",
-                  marginTop: "1rem",
-                }}
-              >
+              <h3 className="allocation-title">
                 <Activity size={18} aria-hidden="true" /> Active Strategy Routes
               </h3>
 
