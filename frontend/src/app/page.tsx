@@ -30,6 +30,8 @@ import { WalletModalTest } from "./components/WalletModalTest";
 import { ChatInterface, type ChatMessage } from "./components/ChatInterface";
 import { goalData, initialMessages } from "../config/mockData";
 import toast from 'react-hot-toast';
+import { GoalTracker } from "./components/GoalTracker";
+import { GlassPanel } from "./components/GlassPanel";
 
 export default function Home() {
   const {
@@ -166,7 +168,7 @@ export default function Home() {
         />
         <main className="app-container" aria-label="Portfolio dashboard">
           {/* Left Panel - Dashboard */}
-          <div className="glass-panel">
+          <GlassPanel>
             <h1>Smasage Portfolio</h1>
             <p className="text-muted" style={{ marginBottom: "2.5rem" }}>
               Real-time on-chain tracking • Stellar Mainnet 🚀
@@ -225,16 +227,16 @@ export default function Home() {
                 </div>
               )}
             </div>
-          </div>
+          </GlassPanel>
 
           {/* Right Panel - Chat Agent */}
-          <div className="glass-panel">
+          <GlassPanel>
             <ChatInterface
               messages={messages}
               isTyping={isTyping}
               onSendMessage={handleSendMessage}
             />
-          </div>
+          </GlassPanel>
         </main>
       </>
     </ErrorBoundary>
