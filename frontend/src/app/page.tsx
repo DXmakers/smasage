@@ -26,8 +26,10 @@ import {
   GoalTrackerSkeleton,
   PortfolioChartSkeleton,
 } from "./components/SkeletonLoader";
-import { WalletModal } from "./components/WalletModal";
+import { WalletModalTest } from "./components/WalletModalTest";
 import { ChatInterface, type ChatMessage } from "./components/ChatInterface";
+import { goalData, initialMessages } from "../config/mockData";
+import toast from 'react-hot-toast';
 import { GoalTracker } from "./components/GoalTracker";
 import { GlassPanel } from "./components/GlassPanel";
 
@@ -40,13 +42,7 @@ export default function Home() {
     isConnecting
   } = useFreighter();
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 1,
-      sender: "agent",
-      text: "Welcome to Smasage! 👋 I'm OpenClaw, your personal AI savings assistant natively built on Stellar. What financial goal can we crush today?",
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [isTyping, setIsTyping] = useState(false);
 
   const [allocations, setAllocations] = useState<AssetAllocation[]>(
@@ -55,15 +51,6 @@ export default function Home() {
 
   const [wsConnected, setWsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-
-  // Goal data (Memoized to avoid unnecessary effect triggers)
-  const goalData = useMemo<GoalData>(() => ({
-    currentBalance: 12450,
-    targetAmount: 18000,
-    targetDate: "2026-08-01",
-    monthlyContribution: 500,
-    expectedAPY: 8.5,
-  }), []);
 
   // Calculate goal status and progress using useMemo to avoid cascading renders
   const { goalStatus, progress } = useMemo(() => {
@@ -94,6 +81,13 @@ export default function Home() {
         setMessages((prev: ChatMessage[]) => [...prev, agentMsg]);
         console.log("[App] Agent message received", text);
 
+        // Show toast for proactive messages
+        if (proactive) {
+          toast('💡 New suggestion from OpenClaw', {
+            duration: 5000,
+          });
+        }
+
         // Parse allocations if present
         const parsedAllocations = parseAllocationsFromMessage(text);
         if (parsedAllocations) {
@@ -103,6 +97,7 @@ export default function Home() {
     },
     onError: (error) => {
       console.error("[App] WebSocket error:", error);
+      toast.error('Failed to connect to notification service');
     },
     enabled: true,
   });
@@ -169,7 +164,7 @@ export default function Home() {
           />
         </DashboardHeader>
 
-        <WalletModal
+        <WalletModalTest
           isOpen={showInstallModal}
           onClose={() => setShowInstallModal(false)}
         />

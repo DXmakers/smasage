@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useWallet } from "../app/components/WalletContext";
+import toast from 'react-hot-toast';
 
 /**
  * Custom hook to manage Freighter wallet interactions.
@@ -45,6 +46,9 @@ export function useFreighter() {
 
     if (!api) {
       setShowInstallModal(true);
+      toast.error('Freighter wallet not detected. Please install the extension and refresh the page.', {
+        duration: 6000,
+      });
       return null;
     }
 
@@ -55,9 +59,11 @@ export function useFreighter() {
     try {
       const key = await api.getPublicKey();
       setPublicKey(key);
+      toast.success('Wallet connected successfully! 🎉');
       return key;
     } catch (error) {
       console.error("[useFreighter] Connection failed:", error);
+      toast.error('Failed to connect wallet. Please try again.');
       return null;
     } finally {
       setIsConnecting(false);
@@ -69,6 +75,7 @@ export function useFreighter() {
    */
   const disconnect = useCallback(() => {
     setPublicKey(null);
+    toast('Wallet disconnected');
   }, [setPublicKey]);
 
   return {

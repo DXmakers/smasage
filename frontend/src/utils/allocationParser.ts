@@ -4,6 +4,7 @@
  */
 
 import type { AssetAllocation } from "./chartUtils";
+import { defaultAllocations } from "../config/mockData";
 
 // Color scheme matching the theme
 const ALLOCATION_COLORS = {
@@ -93,21 +94,5 @@ function getColorForAsset(assetName: string): string {
  * Get default allocations
  */
 export function getDefaultAllocations(): AssetAllocation[] {
-  return [
-    {
-      name: "Blend Protocol Yield (USDC)",
-      percentage: 60,
-      color: ALLOCATION_COLORS.blend,
-    },
-    {
-      name: "Soroswap LP (XLM/USDC)",
-      percentage: 30,
-      color: ALLOCATION_COLORS.soroswap,
-    },
-    {
-      name: "Stellar Anchored Gold (XAUT)",
-      percentage: 10,
-      color: ALLOCATION_COLORS.gold,
-    },
-  ];
+  return defaultAllocations;
 }

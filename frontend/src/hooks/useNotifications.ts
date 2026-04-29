@@ -11,6 +11,7 @@ import {
   WS_MAX_RECONNECT_DELAY_MS,
 } from "../config/constants";
 import type { IncomingNotification, GoalPayload } from "../types/websocket";
+import toast from 'react-hot-toast';
 
 // Re-export so existing imports from this module continue to work.
 export type { IncomingNotification } from "../types/websocket";
@@ -45,6 +46,7 @@ export function useNotifications(options: UseNotificationsOptions) {
         console.log("[WS] Connected");
         reconnectAttemptsRef.current = 0;
         setIsConnected(true);
+        toast.success('Connected to notification service');
 
         // Send initial registration
         ws.send(
@@ -69,6 +71,7 @@ export function useNotifications(options: UseNotificationsOptions) {
       ws.onerror = (event) => {
         const error = new Error("WebSocket error");
         console.error("[WS] Error:", error, event);
+        toast.error('Connection to notification service failed');
         onError?.(error);
       };
 
@@ -76,6 +79,7 @@ export function useNotifications(options: UseNotificationsOptions) {
         console.log("[WS] Disconnected");
         wsRef.current = null;
         setIsConnected(false);
+        toast.error('Disconnected from notification service');
 
         // Attempt reconnection with exponential backoff
         if (reconnectAttemptsRef.current < maxReconnectAttempts) {
