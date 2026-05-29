@@ -386,22 +386,6 @@ impl SmasageYieldRouter {
         blend_client.get_index_rate()
     }
 
-    /// Get the current mock index rate (for testing only)
-    /// In production, this would query the actual Blend pool
-    pub fn get_mock_index_rate(_env: Env) -> i128 {
-        // This is a test helper - in production, this reads from actual Blend pool
-        // For now, return the default precision
-        INDEX_RATE_PRECISION
-    }
-
-    /// Set the mock index rate (for testing only)
-    /// This allows tests to simulate yield accrual
-    pub fn set_mock_index_rate(env: Env, new_rate: i128) {
-        // Store the mock index rate in a special storage location
-        // We use a tuple key pattern to avoid collision with real data
-        env.storage().persistent().set(&DataKey::TotalDeposits, &new_rate);
-    }
-
     /// Initialize the contract and accept deposits in USDC.
     /// Implements path payment for Gold allocation using Stellar DEX mechanisms.
     pub fn deposit(env: Env, from: Address, amount: i128, blend_percentage: u32, lp_percentage: u32, gold_percentage: u32) {
