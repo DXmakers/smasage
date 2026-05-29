@@ -473,6 +473,9 @@ impl SmasageYieldRouter {
         
         assert!(remaining_to_withdraw == 0, "Withdrawal calculation failed");
         
+        // Transfer the withdrawn USDC to the user
+        Self::transfer_usdc_to_user(&env, &to, amount);
+        
         Ok(())
     }
 
