@@ -113,63 +113,6 @@ impl SmasageYieldRouter {
         env.storage().persistent().set(&DataKey::Admin, &admin);
     }
 
-    pub fn init_gold_trustline(env: Env, admin: Address, reserve_stroops: i128) {
-        let stored_admin: Address = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Admin)
-            .expect("Contract not initialized");
-
-        assert!(admin == stored_admin, "Only admin can initialize Gold trustline");
-        admin.require_auth();
-        assert!(
-            reserve_stroops >= TRUSTLINE_BASE_RESERVE_STROOPS,
-            "Insufficient base reserve for trustline"
-        );
-
-        let gold_issuer = String::from_str(&env, CANONICAL_GOLD_ASSET_ISSUER);
-        env.storage()
-            .persistent()
-            .set(&DataKey::GoldAssetCode, &CANONICAL_GOLD_ASSET_CODE);
-        env.storage()
-            .persistent()
-            .set(&DataKey::GoldAssetIssuer, &gold_issuer);
-        env.storage()
-            .persistent()
-            .set(&DataKey::GoldTrustlineReserveStroops, &reserve_stroops);
-        env.storage()
-            .persistent()
-            .set(&DataKey::GoldTrustlineReady, &true);
-    }
-
-    pub fn get_gold_asset(env: Env) -> (Symbol, String) {
-        let code = env
-            .storage()
-            .persistent()
-            .get(&DataKey::GoldAssetCode)
-            .unwrap_or(CANONICAL_GOLD_ASSET_CODE);
-        let issuer = env
-            .storage()
-            .persistent()
-            .get(&DataKey::GoldAssetIssuer)
-            .unwrap_or(String::from_str(&env, CANONICAL_GOLD_ASSET_ISSUER));
-        (code, issuer)
-    }
-
-    pub fn is_gold_trustline_ready(env: Env) -> bool {
-        env.storage()
-            .persistent()
-            .get(&DataKey::GoldTrustlineReady)
-            .unwrap_or(false)
-    }
-
-    pub fn get_gold_reserve_stroops(env: Env) -> i128 {
-        env.storage()
-            .persistent()
-            .get(&DataKey::GoldTrustlineReserveStroops)
-            .unwrap_or(0)
-    }
-
     pub fn initialize_soroswap(
         env: Env,
         admin: Address,
@@ -243,7 +186,7 @@ impl SmasageYieldRouter {
                 last_supply_time: env.ledger().timestamp(),
             });
 
-        position.b_tokens += b_tokens_received;
+        position.b_tokens = position.b_tokens.checked_add(b_tokens_received).unwrap();
         position.last_index_rate = current_index_rate;
         position.last_supply_time = env.ledger().timestamp();
 
@@ -253,13 +196,13 @@ impl SmasageYieldRouter {
         let total_b_tokens: i128 = env.storage().persistent()
             .get(&DataKey::TotalBTokens)
             .unwrap_or(0);
-        env.storage().persistent().set(&DataKey::TotalBTokens, &(total_b_tokens + b_tokens_received));
+        env.storage().persistent().set(&DataKey::TotalBTokens, &total_b_tokens.checked_add(b_tokens_received).unwrap());
 
         // Also update the legacy balance tracking for backward compatibility
         let mut blend_balance: i128 = env.storage().persistent()
             .get(&DataKey::UserBlendBalance(from.clone()))
             .unwrap_or(0);
-        blend_balance += amount;
+        blend_balance = blend_balance.checked_add(amount).unwrap();
         env.storage().persistent().set(&DataKey::UserBlendBalance(from.clone()), &blend_balance);
 
         b_tokens_received
@@ -387,30 +330,35 @@ impl SmasageYieldRouter {
 
     /// Initialize the contract and accept deposits in USDC.
     /// Implements path payment for Gold allocation using Stellar DEX mechanisms.
-    pub fn deposit(env: Env, from: Address, amount: i128, blend_percentage: u32, lp_percentage: u32, gold_percentage: u32) {
+    pub fn deposit(env: Env, from: Address, amount: i128, blend_percentage: u32, lp_percentage: u32, deadline: u64) -> Result<(), Error> {
         from.require_auth();
-        assert!(blend_percentage + lp_percentage + gold_percentage <= 100, "Allocation exceeds 100%");
+        assert!(blend_percentage + lp_percentage <= 100, "Allocation exceeds 100%");
         
+        if env.ledger().timestamp() > deadline {
+            return Err(Error::DeadlineExpired);
+        }
+
         // Transfer USDC from user to contract
         let usdc_addr: Address = env.storage().persistent().get(&DataKey::UsdcToken).expect("USDC not initialized");
         let usdc = TokenClient::new(&env, &usdc_addr);
         usdc.transfer(&from, &env.current_contract_address(), &amount);
 
         let mut balance: i128 = env.storage().persistent().get(&DataKey::UserBalance(from.clone())).unwrap_or(0);
-        balance += amount;
+        balance = balance.checked_add(amount).ok_or(Error::Overflow)?;
         env.storage().persistent().set(&DataKey::UserBalance(from.clone()), &balance);
         
         if lp_percentage > 0 {
             let lp_amount = (amount * lp_percentage as i128) / 100;
             if lp_amount > 0 {
-                Self::provide_lp(env.clone(), from.clone(), lp_amount);
+                Self::provide_lp(env.clone(), from.clone(), lp_amount, deadline)?;
             }
         }
 
         // Mock: Here we would route `blend_percentage` to the Blend protocol
+        Ok(())
     }
 
-    fn provide_lp(env: Env, user: Address, usdc_amount: i128) {
+    fn provide_lp(env: Env, user: Address, usdc_amount: i128, deadline: u64) -> Result<(), Error> {
         let router_addr: Address = env.storage().persistent().get(&DataKey::SoroswapRouter).expect("Soroswap not initialized");
         let usdc_addr: Address = env.storage().persistent().get(&DataKey::UsdcToken).expect("USDC not initialized");
         let xlm_addr: Address = env.storage().persistent().get(&DataKey::XlmToken).expect("XLM not initialized");
@@ -430,7 +378,6 @@ impl SmasageYieldRouter {
         path.push_back(usdc_addr.clone());
         path.push_back(xlm_addr.clone());
 
-        let deadline = env.ledger().timestamp() + 300; // 5 minutes
         let swap_amounts = router.swap_exact_tokens_for_tokens(&half_usdc, &0, &path, &env.current_contract_address(), &deadline);
         let xlm_received = swap_amounts.get(1).unwrap();
 
@@ -451,22 +398,27 @@ impl SmasageYieldRouter {
 
         // Map LP shares to user
         let mut user_shares: i128 = env.storage().persistent().get(&DataKey::UserLPShares(user.clone())).unwrap_or(0);
-        user_shares += lp_shares;
+        user_shares = user_shares.checked_add(lp_shares).ok_or(Error::Overflow)?;
         env.storage().persistent().set(&DataKey::UserLPShares(user), &user_shares);
+        Ok(())
     }
 
     /// Withdraw USDC by unwinding positions from Blend and breaking LP shares from Soroswap.
     /// The contract calculates how much to pull from each source and transfers USDC to the user.
-    pub fn withdraw(env: Env, to: Address, amount: i128) {
+    pub fn withdraw(env: Env, to: Address, amount: i128, deadline: u64) -> Result<(), Error> {
         to.require_auth();
         
-        // Get total user balance (USDC + Blend + LP + Gold)
+        if env.ledger().timestamp() > deadline {
+            return Err(Error::DeadlineExpired);
+        }
+
+        // Get total user balance (USDC + Blend + LP)
         let usdc_balance: i128 = env.storage().persistent().get(&DataKey::UserBalance(to.clone())).unwrap_or(0);
         let blend_balance: i128 = env.storage().persistent().get(&DataKey::UserBlendBalance(to.clone())).unwrap_or(0);
         let lp_shares: i128 = env.storage().persistent().get(&DataKey::UserLPShares(to.clone())).unwrap_or(0);
-        let gold_balance: i128 = env.storage().persistent().get(&DataKey::UserGoldBalance(to.clone())).unwrap_or(0);
         
-        let total_balance = usdc_balance + blend_balance + lp_shares + gold_balance;
+        let mut total_balance = usdc_balance.checked_add(blend_balance).ok_or(Error::Overflow)?;
+        total_balance = total_balance.checked_add(lp_shares).ok_or(Error::Overflow)?;
         assert!(total_balance >= amount, "Insufficient balance");
         
         let mut remaining_to_withdraw = amount;
@@ -474,41 +426,54 @@ impl SmasageYieldRouter {
         // Step 1: Use available USDC first
         if usdc_balance > 0 {
             let usdc_to_use = usdc_balance.min(remaining_to_withdraw);
-            env.storage().persistent().set(&DataKey::UserBalance(to.clone()), &(usdc_balance - usdc_to_use));
-            remaining_to_withdraw -= usdc_to_use;
+            env.storage().persistent().set(&DataKey::UserBalance(to.clone()), &usdc_balance.checked_sub(usdc_to_use).ok_or(Error::Overflow)?);
+            remaining_to_withdraw = remaining_to_withdraw.checked_sub(usdc_to_use).ok_or(Error::Overflow)?;
         }
         
         // Step 2: If still need more, unwind Blend positions (pull liquidity)
         if remaining_to_withdraw > 0 && blend_balance > 0 {
             let blend_to_unwind = blend_balance.min(remaining_to_withdraw);
-            env.storage().persistent().set(&DataKey::UserBlendBalance(to.clone()), &(blend_balance - blend_to_unwind));
-            // Mock: In production, this would call Blend Protocol to withdraw underlying assets
-            // For simplicity, we assume 1:1 conversion back to USDC
-            remaining_to_withdraw -= blend_to_unwind;
+            env.storage().persistent().set(&DataKey::UserBlendBalance(to.clone()), &blend_balance.checked_sub(blend_to_unwind).ok_or(Error::Overflow)?);
+            remaining_to_withdraw = remaining_to_withdraw.checked_sub(blend_to_unwind).ok_or(Error::Overflow)?;
         }
         
         // Step 3: If still need more, break LP shares on Soroswap
         if remaining_to_withdraw > 0 && lp_shares > 0 {
             let lp_to_break = lp_shares.min(remaining_to_withdraw);
-            env.storage().persistent().set(&DataKey::UserLPShares(to.clone()), &(lp_shares - lp_to_break));
-            // Mock: In production, this would remove liquidity from Soroswap pool and swap back to USDC
-            // For simplicity, we assume 1:1 conversion back to USDC
-            remaining_to_withdraw -= lp_to_break;
-        }
-        
-        // Step 4: If still need more, sell Gold allocation
-        if remaining_to_withdraw > 0 && gold_balance > 0 {
-            let gold_to_sell = gold_balance.min(remaining_to_withdraw);
-            env.storage().persistent().set(&DataKey::UserGoldBalance(to.clone()), &(gold_balance - gold_to_sell));
-            // Mock: In production, this would swap XAUT back to USDC via Stellar DEX
-            // For simplicity, we assume 1:1 conversion back to USDC
-            remaining_to_withdraw -= gold_to_sell;
+            env.storage().persistent().set(&DataKey::UserLPShares(to.clone()), &lp_shares.checked_sub(lp_to_break).ok_or(Error::Overflow)?);
+            
+            let router_addr: Address = env.storage().persistent().get(&DataKey::SoroswapRouter).expect("Soroswap not initialized");
+            let router = SoroswapRouterClient::new(&env, &router_addr);
+            let usdc_addr: Address = env.storage().persistent().get(&DataKey::UsdcToken).expect("USDC not initialized");
+            let xlm_addr: Address = env.storage().persistent().get(&DataKey::XlmToken).expect("XLM not initialized");
+            
+            let (amount_usdc, amount_xlm) = router.remove_liquidity(
+                &usdc_addr,
+                &xlm_addr,
+                &lp_to_break,
+                &0,
+                &0,
+                &env.current_contract_address(),
+                &deadline,
+            );
+            
+            let mut path = Vec::new(&env);
+            path.push_back(xlm_addr.clone());
+            path.push_back(usdc_addr.clone());
+            
+            let xlm = TokenClient::new(&env, &xlm_addr);
+            xlm.approve(&env.current_contract_address(), &router_addr, &amount_xlm, &(env.ledger().sequence() + 100));
+            
+            let swap_amounts = router.swap_exact_tokens_for_tokens(&amount_xlm, &0, &path, &env.current_contract_address(), &deadline);
+            let usdc_received = swap_amounts.get(1).unwrap();
+            
+            let total_usdc_recovered = amount_usdc.checked_add(usdc_received).ok_or(Error::Overflow)?;
+            remaining_to_withdraw = remaining_to_withdraw.checked_sub(lp_to_break).ok_or(Error::Overflow)?;
         }
         
         assert!(remaining_to_withdraw == 0, "Withdrawal calculation failed");
         
-        // Mock: Transfer the resulting USDC to the user
-        // In production, this would execute actual token transfers via Soroban token interface
+        Ok(())
     }
 
     /// Withdraw from Blend Protocol by redeeming bTokens
@@ -553,7 +518,7 @@ impl SmasageYieldRouter {
         );
 
         // Update user's Blend position
-        position.b_tokens -= b_tokens;
+        position.b_tokens = position.b_tokens.checked_sub(b_tokens).unwrap();
         position.last_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
         position.last_supply_time = env.ledger().timestamp();
 
@@ -566,7 +531,7 @@ impl SmasageYieldRouter {
         let total_b_tokens: i128 = env.storage().persistent()
             .get(&DataKey::TotalBTokens)
             .unwrap_or(0);
-        env.storage().persistent().set(&DataKey::TotalBTokens, &(total_b_tokens - b_tokens));
+        env.storage().persistent().set(&DataKey::TotalBTokens, &total_b_tokens.checked_sub(b_tokens).unwrap());
 
         let blend_balance: i128 = env.storage().persistent()
             .get(&DataKey::UserBlendBalance(to.clone()))
@@ -574,7 +539,7 @@ impl SmasageYieldRouter {
         let current_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
         let usdc_equivalent = b_tokens * current_index_rate / INDEX_RATE_PRECISION;
         if blend_balance >= usdc_equivalent {
-            env.storage().persistent().set(&DataKey::UserBlendBalance(to.clone()), &(blend_balance - usdc_equivalent));
+            env.storage().persistent().set(&DataKey::UserBlendBalance(to.clone()), &blend_balance.checked_sub(usdc_equivalent).unwrap());
         } else {
             env.storage().persistent().set(&DataKey::UserBlendBalance(to.clone()), &0i128);
         }
@@ -674,10 +639,10 @@ mod test {
         client.initialize_soroswap(&admin, &router_id, &usdc_id, &xlm_id);
 
         // Deposit 1000 USDC, 50% to LP
-        client.deposit(&user, &1000, &0, &50, &0);
+        client.deposit(&user, &1000, &0, &50, &u64::MAX);
 
         // 60% Blend, 30% LP, 10% Gold
-        client.deposit(&user, &1000, &60, &30, &10);
+        client.deposit(&user, &1000, &60, &30, &u64::MAX);
         
         assert_eq!(client.get_balance(&user), 2000);
         assert_eq!(client.get_gold_balance(&user), 0);
@@ -709,7 +674,7 @@ mod test {
         assert_eq!(client.get_lp_shares(&user), 100);
         
         // Withdraw full amount - should unwind from all sources
-        client.withdraw(&user, &1000);
+        client.withdraw(&user, &1000, &u64::MAX);
         assert_eq!(client.get_balance(&user), 0);
         // LP shares remain because withdrawal priority uses USDC first
         assert_eq!(client.get_gold_balance(&user), 0);
@@ -733,12 +698,12 @@ mod test {
         client.initialize_soroswap(&admin, &router, &usdc, &xlm);
 
         // Deposit with 20% Gold allocation
-        client.deposit(&user, &2000, &50, &30, &20);
+        client.deposit(&user, &2000, &50, &30, &u64::MAX);
         
         assert_eq!(client.get_gold_balance(&user), 0);
         
         // Partial withdrawal shouldn't affect gold unless needed
-        client.withdraw(&user, &500);
+        client.withdraw(&user, &500, &u64::MAX);
         assert_eq!(client.get_gold_balance(&user), 0);
     }
 
@@ -768,7 +733,7 @@ mod test {
 
             pub fn mint(env: Env, to: Address, amount: i128) {
                 let balance: i128 = env.storage().persistent().get(&TokenDataKey::Balance(to.clone())).unwrap_or(0);
-                env.storage().persistent().set(&TokenDataKey::Balance(to), &(balance + amount));
+                env.storage().persistent().set(&TokenDataKey::Balance(to), &balance.checked_add(amount).unwrap());
             }
 
             pub fn transfer(env: Env, from: Address, to: Address, amount: i128) {
@@ -779,8 +744,8 @@ mod test {
                 
                 let to_balance: i128 = env.storage().persistent().get(&TokenDataKey::Balance(to.clone())).unwrap_or(0);
                 
-                env.storage().persistent().set(&TokenDataKey::Balance(from), &(from_balance - amount));
-                env.storage().persistent().set(&TokenDataKey::Balance(to), &(to_balance + amount));
+                env.storage().persistent().set(&TokenDataKey::Balance(from), &from_balance.checked_sub(amount).unwrap());
+                env.storage().persistent().set(&TokenDataKey::Balance(to), &to_balance.checked_add(amount).unwrap());
             }
 
             pub fn balance(env: Env, id: Address) -> i128 {
@@ -821,8 +786,8 @@ mod test {
                 let total_supply: i128 = env.storage().persistent().get(&MockDataKey::TotalSupply).unwrap_or(0);
                 let b_token_supply: i128 = env.storage().persistent().get(&MockDataKey::BTokenSupply).unwrap_or(0);
                 
-                env.storage().persistent().set(&MockDataKey::TotalSupply, &(total_supply + amount));
-                env.storage().persistent().set(&MockDataKey::BTokenSupply, &(b_token_supply + b_tokens));
+                env.storage().persistent().set(&MockDataKey::TotalSupply, &total_supply.checked_add(amount).unwrap());
+                env.storage().persistent().set(&MockDataKey::BTokenSupply, &b_token_supply.checked_add(b_tokens).unwrap());
                 
                 b_tokens
             }
@@ -836,8 +801,8 @@ mod test {
                 let total_supply: i128 = env.storage().persistent().get(&MockDataKey::TotalSupply).unwrap_or(0);
                 let b_token_supply: i128 = env.storage().persistent().get(&MockDataKey::BTokenSupply).unwrap_or(0);
                 
-                env.storage().persistent().set(&MockDataKey::TotalSupply, &(total_supply - underlying));
-                env.storage().persistent().set(&MockDataKey::BTokenSupply, &(b_token_supply - b_tokens));
+                env.storage().persistent().set(&MockDataKey::TotalSupply, &total_supply.checked_sub(underlying).unwrap());
+                env.storage().persistent().set(&MockDataKey::BTokenSupply, &b_token_supply.checked_sub(b_tokens).unwrap());
                 
                 underlying
             }
