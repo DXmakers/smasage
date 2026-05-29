@@ -41,7 +41,7 @@ pub trait TokenTrait {
 /// This trait defines the interface for interacting with the Blend Protocol
 #[soroban_sdk::contractclient(name = "BlendPoolClient")]
 pub trait BlendPoolInterface {
-    /// Supply assets to the Blend pool and receive bTokens
+    /// Supply assets to the Blend pool from `from` and return bTokens minted.
     fn supply(env: Env, from: Address, amount: i128) -> i128;
     
     /// Withdraw assets from the Blend pool by redeeming bTokens
@@ -221,7 +221,7 @@ impl SmasageYieldRouter {
         let blend_pool = Self::get_blend_pool(env.clone())
             .expect("Blend pool not initialized");
 
-        // Transfer USDC from user to contract
+        // Hold USDC on the router, then supply to Blend via pool invocation.
         Self::transfer_usdc_from_user(&env, &from, amount);
 
         let b_tokens_received = Self::call_blend_supply(
@@ -545,8 +545,12 @@ impl SmasageYieldRouter {
             b_tokens_to_redeem
         };
 
-        // Call Blend pool to withdraw assets
-        let usdc_received = Self::call_blend_withdraw(&env, &blend_pool, &env.current_contract_address(), b_tokens);
+        let usdc_received = Self::call_blend_withdraw(
+            &env,
+            &blend_pool,
+            &env.current_contract_address(),
+            b_tokens,
+        );
 
         // Update user's Blend position
         position.b_tokens -= b_tokens;
