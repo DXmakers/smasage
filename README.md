@@ -51,12 +51,14 @@
    npm install
    npm start
    ```
+   > **Note**: `npm start` uses `--env-file=.env` which requires Node.js v20+. Ensure your `.env` file exists before starting.
 
 4. **Build the Contracts**:
    ```bash
    cd contracts
    cargo build --target wasm32-unknown-unknown
    ```
+   > **Note**: `cargo test` currently has known failures unrelated to the build. Use `cargo build --target wasm32-unknown-unknown` to verify contracts compile correctly.
 
 ### Running Frontend and Agent Concurrently
 
