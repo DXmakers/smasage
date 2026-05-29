@@ -13,10 +13,13 @@ Cargo.lock
 test_snapshots/
 
 # Environment
+# .env files are ignored at root and recursively in all subdirectories
+# to prevent accidental commits of configuration containing secrets
 .env
 .env.*
 **/.env
 **/.env.*
+# Exception: Always include .env.example files as templates
 !.env.example
 !**/.env.example
 
