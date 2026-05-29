@@ -379,15 +379,10 @@ impl SmasageYieldRouter {
         b_tokens * index_rate / INDEX_RATE_PRECISION
     }
 
-    /// Internal function to get Blend pool index rate
-    fn call_blend_index_rate(env: &Env, _blend_pool: &Address) -> i128 {
-        // In production, this would invoke blend_pool.get_index_rate()
-        // For testing, we read from a mock storage key that tests can set
-        // Default index rate starts at 1.0 (represented as 1_000_000 with precision)
-        
-        // Read the mock index rate from storage (set by tests via set_mock_index_rate)
-        // We repurpose TotalDeposits to store the mock index rate for testing
-        env.storage().persistent().get(&DataKey::TotalDeposits).unwrap_or(INDEX_RATE_PRECISION)
+    /// Query the Blend pool for the current index rate used in yield math.
+    fn call_blend_index_rate(env: &Env, blend_pool: &Address) -> i128 {
+        let blend_client = BlendPoolClient::new(env, blend_pool);
+        blend_client.get_index_rate()
     }
 
     /// Get the current mock index rate (for testing only)
