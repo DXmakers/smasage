@@ -352,19 +352,25 @@ impl SmasageYieldRouter {
             })
     }
 
-    /// Internal function to call Blend pool supply
-    /// This can be overridden in tests via mocking
-    fn call_blend_supply(env: &Env, blend_pool: &Address, _from: &Address, amount: i128) -> i128 {
-        // In production, this would invoke the actual Blend contract
-        // For testing, this will be mocked
-        // Returns the amount of bTokens received
-        
-        // Get current index rate to calculate bTokens
-        let index_rate = Self::call_blend_index_rate(env, blend_pool);
-        
-        // Calculate bTokens: amount * INDEX_RATE_PRECISION / index_rate
-        // As index rate increases, fewer bTokens are minted per unit of underlying
-        amount * INDEX_RATE_PRECISION / index_rate
+    /// Approve the Blend pool to pull USDC from `spender` before supplying.
+    fn approve_blend_pool_spend(
+        env: &Env,
+        spender: &Address,
+        blend_pool: &Address,
+        amount: i128,
+    ) {
+        let usdc_token = Self::get_usdc_token(env.clone())
+            .expect("USDC token not initialized");
+        let token_client = TokenClient::new(env, &usdc_token);
+        let expiration = env.ledger().sequence() + 100;
+        token_client.approve(spender, blend_pool, &amount, &expiration);
+    }
+
+    /// Supply underlying assets to the configured Blend pool and return bTokens minted.
+    fn call_blend_supply(env: &Env, blend_pool: &Address, from: &Address, amount: i128) -> i128 {
+        Self::approve_blend_pool_spend(env, from, blend_pool, amount);
+        let blend_client = BlendPoolClient::new(env, blend_pool);
+        blend_client.supply(from, &amount)
     }
 
     /// Internal function to call Blend pool withdraw
