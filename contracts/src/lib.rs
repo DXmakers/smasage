@@ -87,7 +87,7 @@ pub enum DataKey {
     UserGoldBalance(Address),
     /// User's Blend Protocol position (bTokens)
     UserBlendPosition(Address),
-    /// Mock Blend Pool address (for testing)
+    /// Configured Blend pool contract address
     BlendPoolAddress,
     /// USDC Token contract address
     UsdcTokenAddress,
@@ -225,10 +225,12 @@ impl SmasageYieldRouter {
         // Transfer USDC from user to contract
         Self::transfer_usdc_from_user(&env, &from, amount);
 
-        // Call Blend pool to supply assets and get bTokens
-        // In production, this would invoke the actual Blend contract
-        // For now, we use a client pattern that can be mocked in tests
-        let b_tokens_received = Self::call_blend_supply(&env, &blend_pool, &env.current_contract_address(), amount);
+        let b_tokens_received = Self::call_blend_supply(
+            &env,
+            &blend_pool,
+            &env.current_contract_address(),
+            amount,
+        );
 
         // Snapshot the pool index rate after supply for per-user yield tracking.
         let current_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
