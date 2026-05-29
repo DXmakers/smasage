@@ -39,15 +39,15 @@ pub trait TokenTrait {
 
 /// Blend Pool interface for supplying and withdrawing assets
 /// This trait defines the interface for interacting with the Blend Protocol
+#[soroban_sdk::contractclient(name = "BlendPoolClient")]
 pub trait BlendPoolInterface {
-    /// Supply assets to the Blend pool and receive bTokens
+    /// Supply assets to the Blend pool from `from` and return bTokens minted.
     fn supply(env: Env, from: Address, amount: i128) -> i128;
     
-    /// Withdraw assets from the Blend pool by redeeming bTokens
+    /// Redeem bTokens from the Blend pool to `to` and return underlying received.
     fn withdraw(env: Env, to: Address, b_tokens: i128) -> i128;
     
-    /// Get the current index rate for yield calculation
-    /// The index rate represents the exchange rate between underlying assets and bTokens
+    /// Current index rate: underlying-per-bToken exchange scale (see INDEX_RATE_PRECISION).
     fn get_index_rate(env: Env) -> i128;
     
     /// Get the total bToken supply for the pool
@@ -86,7 +86,7 @@ pub enum DataKey {
     UserGoldBalance(Address),
     /// User's Blend Protocol position (bTokens)
     UserBlendPosition(Address),
-    /// Mock Blend Pool address (for testing)
+    /// Configured Blend pool contract address
     BlendPoolAddress,
     /// USDC Token contract address
     UsdcTokenAddress,
@@ -97,7 +97,7 @@ pub enum DataKey {
 const CANONICAL_GOLD_ASSET_CODE: Symbol = symbol_short!("XAUT");
 const CANONICAL_GOLD_ASSET_ISSUER: &str = "GCRLXTLD7XIRXWXV2PDCC74O5TUUKN3OODJAM6TWVE4AIRNMGQJK3KWQ";
 const TRUSTLINE_BASE_RESERVE_STROOPS: i128 = 5_000_000;
-/// Precision factor for index rate calculations (6 decimal places)
+/// Precision factor for pool index rates (6 decimal places; 1.0 = 1_000_000).
 pub const INDEX_RATE_PRECISION: i128 = 1_000_000;
 
 #[contract]
@@ -221,15 +221,17 @@ impl SmasageYieldRouter {
         let blend_pool = Self::get_blend_pool(env.clone())
             .expect("Blend pool not initialized");
 
-        // Transfer USDC from user to contract
+        // Hold USDC on the router, then supply to Blend via pool invocation.
         Self::transfer_usdc_from_user(&env, &from, amount);
 
-        // Call Blend pool to supply assets and get bTokens
-        // In production, this would invoke the actual Blend contract
-        // For now, we use a client pattern that can be mocked in tests
-        let b_tokens_received = Self::call_blend_supply(&env, &blend_pool, &env.current_contract_address(), amount);
+        let b_tokens_received = Self::call_blend_supply(
+            &env,
+            &blend_pool,
+            &env.current_contract_address(),
+            amount,
+        );
 
-        // Get current index rate for yield tracking
+        // Snapshot the pool index rate after supply for per-user yield tracking.
         let current_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
 
         // Update user's Blend position
@@ -304,7 +306,7 @@ impl SmasageYieldRouter {
             .expect("Blend pool not initialized");
         let current_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
 
-        // Calculate yield: bTokens * (current_index_rate - last_index_rate) / precision
+        // Yield from pool index rate delta since the user's last supply snapshot.
         let index_diff = current_index_rate.saturating_sub(position.last_index_rate);
         let yield_amount = position.b_tokens * index_diff / INDEX_RATE_PRECISION;
 
@@ -335,7 +337,7 @@ impl SmasageYieldRouter {
             .expect("Blend pool not initialized");
         let current_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
 
-        // Calculate value: bTokens * current_index_rate / precision
+        // Mark-to-market using the pool's current index rate.
         position.b_tokens * current_index_rate / INDEX_RATE_PRECISION
     }
 
@@ -350,59 +352,37 @@ impl SmasageYieldRouter {
             })
     }
 
-    /// Internal function to call Blend pool supply
-    /// This can be overridden in tests via mocking
-    fn call_blend_supply(env: &Env, blend_pool: &Address, _from: &Address, amount: i128) -> i128 {
-        // In production, this would invoke the actual Blend contract
-        // For testing, this will be mocked
-        // Returns the amount of bTokens received
-        
-        // Get current index rate to calculate bTokens
-        let index_rate = Self::call_blend_index_rate(env, blend_pool);
-        
-        // Calculate bTokens: amount * INDEX_RATE_PRECISION / index_rate
-        // As index rate increases, fewer bTokens are minted per unit of underlying
-        amount * INDEX_RATE_PRECISION / index_rate
+    /// Approve the Blend pool to pull USDC from `spender` (router) before supplying.
+    fn approve_blend_pool_spend(
+        env: &Env,
+        spender: &Address,
+        blend_pool: &Address,
+        amount: i128,
+    ) {
+        let usdc_token = Self::get_usdc_token(env.clone())
+            .expect("USDC token not initialized");
+        let token_client = TokenClient::new(env, &usdc_token);
+        let expiration_ledger = env.ledger().sequence() + 100;
+        token_client.approve(spender, blend_pool, &amount, &expiration_ledger);
     }
 
-    /// Internal function to call Blend pool withdraw
-    fn call_blend_withdraw(env: &Env, blend_pool: &Address, _to: &Address, b_tokens: i128) -> i128 {
-        // In production, this would invoke the actual Blend contract
-        // For testing, this will be mocked
-        // Returns the amount of underlying assets received
-        
-        let index_rate = Self::call_blend_index_rate(env, blend_pool);
-        
-        // Calculate underlying: bTokens * index_rate / INDEX_RATE_PRECISION
-        // As index rate increases, each bToken is worth more underlying
-        b_tokens * index_rate / INDEX_RATE_PRECISION
+    /// Supply underlying assets to the configured Blend pool and return bTokens minted.
+    fn call_blend_supply(env: &Env, blend_pool: &Address, from: &Address, amount: i128) -> i128 {
+        Self::approve_blend_pool_spend(env, from, blend_pool, amount);
+        let blend_client = BlendPoolClient::new(env, blend_pool);
+        blend_client.supply(from, &amount)
     }
 
-    /// Internal function to get Blend pool index rate
-    fn call_blend_index_rate(env: &Env, _blend_pool: &Address) -> i128 {
-        // In production, this would invoke blend_pool.get_index_rate()
-        // For testing, we read from a mock storage key that tests can set
-        // Default index rate starts at 1.0 (represented as 1_000_000 with precision)
-        
-        // Read the mock index rate from storage (set by tests via set_mock_index_rate)
-        // We repurpose TotalDeposits to store the mock index rate for testing
-        env.storage().persistent().get(&DataKey::TotalDeposits).unwrap_or(INDEX_RATE_PRECISION)
+    /// Redeem bTokens via the Blend pool and return underlying assets received.
+    fn call_blend_withdraw(env: &Env, blend_pool: &Address, to: &Address, b_tokens: i128) -> i128 {
+        let blend_client = BlendPoolClient::new(env, blend_pool);
+        blend_client.withdraw(to, &b_tokens)
     }
 
-    /// Get the current mock index rate (for testing only)
-    /// In production, this would query the actual Blend pool
-    pub fn get_mock_index_rate(_env: Env) -> i128 {
-        // This is a test helper - in production, this reads from actual Blend pool
-        // For now, return the default precision
-        INDEX_RATE_PRECISION
-    }
-
-    /// Set the mock index rate (for testing only)
-    /// This allows tests to simulate yield accrual
-    pub fn set_mock_index_rate(env: Env, new_rate: i128) {
-        // Store the mock index rate in a special storage location
-        // We use a tuple key pattern to avoid collision with real data
-        env.storage().persistent().set(&DataKey::TotalDeposits, &new_rate);
+    /// Query the Blend pool for the current index rate used in yield math.
+    fn call_blend_index_rate(env: &Env, blend_pool: &Address) -> i128 {
+        let blend_client = BlendPoolClient::new(env, blend_pool);
+        blend_client.get_index_rate()
     }
 
     /// Initialize the contract and accept deposits in USDC.
@@ -565,8 +545,12 @@ impl SmasageYieldRouter {
             b_tokens_to_redeem
         };
 
-        // Call Blend pool to withdraw assets
-        let usdc_received = Self::call_blend_withdraw(&env, &blend_pool, &env.current_contract_address(), b_tokens);
+        let usdc_received = Self::call_blend_withdraw(
+            &env,
+            &blend_pool,
+            &env.current_contract_address(),
+            b_tokens,
+        );
 
         // Update user's Blend position
         position.b_tokens -= b_tokens;
@@ -576,21 +560,17 @@ impl SmasageYieldRouter {
         if position.b_tokens > 0 {
             env.storage().persistent().set(&DataKey::UserBlendPosition(to.clone()), &position);
         } else {
-            // Remove position if fully withdrawn
             env.storage().persistent().remove(&DataKey::UserBlendPosition(to.clone()));
         }
 
-        // Update total bTokens held by contract
         let total_b_tokens: i128 = env.storage().persistent()
             .get(&DataKey::TotalBTokens)
             .unwrap_or(0);
         env.storage().persistent().set(&DataKey::TotalBTokens, &(total_b_tokens - b_tokens));
 
-        // Update legacy balance tracking
         let blend_balance: i128 = env.storage().persistent()
             .get(&DataKey::UserBlendBalance(to.clone()))
             .unwrap_or(0);
-        // Calculate the corresponding USDC amount to deduct from legacy tracking
         let current_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
         let usdc_equivalent = b_tokens * current_index_rate / INDEX_RATE_PRECISION;
         if blend_balance >= usdc_equivalent {
@@ -764,6 +744,7 @@ mod test {
 
     // ============================================
     // Blend Protocol Integration Tests
+    // Index rate changes are applied on the mock Blend pool contract only.
     // ============================================
 
     /// Mock USDC Token contract for testing
@@ -808,7 +789,7 @@ mod test {
         }
     }
 
-    /// Mock Blend Pool contract for testing
+    /// Stand-in Blend pool used only by #[cfg(test)] integration tests.
     mod mock_blend_pool {
         use soroban_sdk::{contract, contractimpl, contracttype, Env, Address};
         use super::super::INDEX_RATE_PRECISION;
@@ -865,6 +846,7 @@ mod test {
                 env.storage().persistent().get(&MockDataKey::IndexRate).unwrap_or(INDEX_RATE_PRECISION)
             }
 
+            /// Test-only: simulate pool index rate accrual (not part of production Blend API).
             pub fn set_index_rate(env: Env, new_rate: i128) {
                 env.storage().persistent().set(&MockDataKey::IndexRate, &new_rate);
             }
@@ -984,9 +966,9 @@ mod test {
         let initial_yield = client.calculate_blend_yield(&user);
         assert_eq!(initial_yield, 0);
 
-        // Simulate yield accrual by increasing index rate to 1.05 (5% yield)
+        // Accrue yield on the mock pool (5% index bump), not via router storage.
         let new_index_rate = INDEX_RATE_PRECISION + (INDEX_RATE_PRECISION * 5 / 100); // 1.05
-        client.set_mock_index_rate(&new_index_rate);
+        blend_pool_client.set_index_rate(&new_index_rate);
 
         // Calculate yield after index rate increase
         // Yield = bTokens * (current_index - last_index) / precision
@@ -1124,7 +1106,7 @@ mod test {
 
         // Increase index rate to 1.10 (10% yield)
         let new_index_rate = INDEX_RATE_PRECISION + (INDEX_RATE_PRECISION * 10 / 100); // 1.10
-        client.set_mock_index_rate(&new_index_rate);
+        blend_pool_client.set_index_rate(&new_index_rate);
 
         // Withdraw all bTokens
         let usdc_received = client.withdraw_from_blend(&user, &0);
@@ -1168,7 +1150,7 @@ mod test {
 
         // Increase index rate to 1.05
         let new_index_rate = INDEX_RATE_PRECISION + (INDEX_RATE_PRECISION * 5 / 100);
-        client.set_mock_index_rate(&new_index_rate);
+        blend_pool_client.set_index_rate(&new_index_rate);
 
         // Calculate yield BEFORE second supply (to capture yield from first supply)
         // First supply yield: 500 * (1,050,000 - 1,000,000) / 1,000,000 = 25
@@ -1227,14 +1209,14 @@ mod test {
 
         // Simulate 1 year of yield at 5% APR
         let new_index_rate = INDEX_RATE_PRECISION + (INDEX_RATE_PRECISION * 5 / 100);
-        client.set_mock_index_rate(&new_index_rate);
+        blend_pool_client.set_index_rate(&new_index_rate);
 
         // Value should now be 2100
         assert_eq!(client.get_blend_position_value(&user), 2100);
 
         // Simulate another 5% yield (compound)
         let new_index_rate_2 = new_index_rate + (new_index_rate * 5 / 100);
-        client.set_mock_index_rate(&new_index_rate_2);
+        blend_pool_client.set_index_rate(&new_index_rate_2);
 
         // Value should now be approximately 2205
         let value = client.get_blend_position_value(&user);
