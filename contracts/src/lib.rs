@@ -98,7 +98,7 @@ pub enum DataKey {
 const CANONICAL_GOLD_ASSET_CODE: Symbol = symbol_short!("XAUT");
 const CANONICAL_GOLD_ASSET_ISSUER: &str = "GCRLXTLD7XIRXWXV2PDCC74O5TUUKN3OODJAM6TWVE4AIRNMGQJK3KWQ";
 const TRUSTLINE_BASE_RESERVE_STROOPS: i128 = 5_000_000;
-/// Precision factor for index rate calculations (6 decimal places)
+/// Precision factor for pool index rates (6 decimal places; 1.0 = 1_000_000).
 pub const INDEX_RATE_PRECISION: i128 = 1_000_000;
 
 #[contract]
@@ -230,7 +230,7 @@ impl SmasageYieldRouter {
         // For now, we use a client pattern that can be mocked in tests
         let b_tokens_received = Self::call_blend_supply(&env, &blend_pool, &env.current_contract_address(), amount);
 
-        // Get current index rate for yield tracking
+        // Snapshot the pool index rate after supply for per-user yield tracking.
         let current_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
 
         // Update user's Blend position
@@ -305,7 +305,7 @@ impl SmasageYieldRouter {
             .expect("Blend pool not initialized");
         let current_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
 
-        // Calculate yield: bTokens * (current_index_rate - last_index_rate) / precision
+        // Yield from pool index rate delta since the user's last supply snapshot.
         let index_diff = current_index_rate.saturating_sub(position.last_index_rate);
         let yield_amount = position.b_tokens * index_diff / INDEX_RATE_PRECISION;
 
@@ -336,7 +336,7 @@ impl SmasageYieldRouter {
             .expect("Blend pool not initialized");
         let current_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
 
-        // Calculate value: bTokens * current_index_rate / precision
+        // Mark-to-market using the pool's current index rate.
         position.b_tokens * current_index_rate / INDEX_RATE_PRECISION
     }
 
@@ -572,21 +572,17 @@ impl SmasageYieldRouter {
         if position.b_tokens > 0 {
             env.storage().persistent().set(&DataKey::UserBlendPosition(to.clone()), &position);
         } else {
-            // Remove position if fully withdrawn
             env.storage().persistent().remove(&DataKey::UserBlendPosition(to.clone()));
         }
 
-        // Update total bTokens held by contract
         let total_b_tokens: i128 = env.storage().persistent()
             .get(&DataKey::TotalBTokens)
             .unwrap_or(0);
         env.storage().persistent().set(&DataKey::TotalBTokens, &(total_b_tokens - b_tokens));
 
-        // Update legacy balance tracking
         let blend_balance: i128 = env.storage().persistent()
             .get(&DataKey::UserBlendBalance(to.clone()))
             .unwrap_or(0);
-        // Calculate the corresponding USDC amount to deduct from legacy tracking
         let current_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
         let usdc_equivalent = b_tokens * current_index_rate / INDEX_RATE_PRECISION;
         if blend_balance >= usdc_equivalent {
