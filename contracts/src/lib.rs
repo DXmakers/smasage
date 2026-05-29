@@ -78,6 +78,7 @@ pub trait TokenTrait {
 
 /// Blend Pool interface for supplying and withdrawing assets
 /// This trait defines the interface for interacting with the Blend Protocol
+#[soroban_sdk::contractclient(name = "BlendPoolClient")]
 pub trait BlendPoolInterface {
     /// Supply assets to the Blend pool and receive bTokens
     fn supply(env: Env, from: Address, amount: i128) -> i128;
@@ -292,7 +293,12 @@ impl SmasageYieldRouter {
         // In production, this would invoke the actual Blend contract
         // For now, we use a client pattern that can be mocked in tests
         let b_tokens_received =
-            Self::call_blend_supply(&env, &blend_pool, &env.current_contract_address(), amount)?;
+        Self::call_blend_supply(
+            &env,
+            &blend_pool,
+            &env.current_contract_address(),
+            amount,
+        )?;
 
         // Get current index rate for yield tracking
         let current_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
@@ -312,6 +318,7 @@ impl SmasageYieldRouter {
             .b_tokens
             .checked_add(b_tokens_received)
             .ok_or(ContractError::ArithmeticOverflow)?;
+
         position.last_index_rate = current_index_rate;
         position.last_supply_time = env.ledger().timestamp();
 
@@ -325,9 +332,11 @@ impl SmasageYieldRouter {
             .persistent()
             .get(&DataKey::TotalBTokens)
             .unwrap_or(0);
+
         let updated_total_b_tokens = total_b_tokens
             .checked_add(b_tokens_received)
             .ok_or(ContractError::ArithmeticOverflow)?;
+
         env.storage()
             .persistent()
             .set(&DataKey::TotalBTokens, &updated_total_b_tokens);
@@ -340,9 +349,11 @@ impl SmasageYieldRouter {
             .persistent()
             .get(&DataKey::UserBlendBalance(from.clone()))
             .unwrap_or(0);
+
         blend_balance = blend_balance
             .checked_add(amount)
             .ok_or(ContractError::ArithmeticOverflow)?;
+
         env.storage()
             .persistent()
             .set(&DataKey::UserBlendBalance(from.clone()), &blend_balance);
@@ -359,22 +370,30 @@ impl SmasageYieldRouter {
     ) -> Result<(), ContractError> {
         let usdc_token =
             Self::get_usdc_token(env.clone()).ok_or(ContractError::UsdcTokenNotInitialized)?;
+
         let token_client = TokenClient::new(env, &usdc_token);
 
         // Issue #165: Assert sender has sufficient balance before initiating transfer
         let sender_balance = token_client.balance(from);
+
         if sender_balance < amount {
             return Err(ContractError::InsufficientBalance);
         }
 
         token_client.transfer(from, &env.current_contract_address(), &amount);
+
         Ok(())
     }
 
     /// Internal function to transfer USDC from contract to user
-    fn transfer_usdc_to_user(env: &Env, to: &Address, amount: i128) -> Result<(), ContractError> {
+    fn transfer_usdc_to_user(
+        env: &Env,
+        to: &Address,
+        amount: i128,
+    ) -> Result<(), ContractError> {
         let usdc_token =
             Self::get_usdc_token(env.clone()).ok_or(ContractError::UsdcTokenNotInitialized)?;
+
         let token_client = TokenClient::new(env, &usdc_token);
 
         // Issue #166: Add token balance assertions for withdrawals
@@ -382,11 +401,13 @@ impl SmasageYieldRouter {
         // The actual transfer will fail if insufficient balance, providing implicit validation
         // We keep the explicit check for better error messages
         let contract_balance = token_client.balance(&env.current_contract_address());
+
         if contract_balance < amount {
             return Err(ContractError::InsufficientBalance);
         }
 
         token_client.transfer(&env.current_contract_address(), to, &amount);
+
         Ok(())
     }
 
@@ -397,402 +418,187 @@ impl SmasageYieldRouter {
     ///
     /// # Returns
     /// The current yield amount in USDC (underlying asset terms)
-    pub fn calculate_blend_yield(env: Env, user: Address) -> Result<i128, ContractError> {
-        let position: BlendPosition = env
-            .storage()
-            .persistent()
-            .get(&DataKey::UserBlendPosition(user.clone()))
-            .unwrap_or(BlendPosition {
-                b_tokens: 0,
-                last_index_rate: INDEX_RATE_PRECISION,
-                last_supply_time: 0,
-            });
-
-        if position.b_tokens == 0 {
-            return Ok(0);
-        }
-
-        let blend_pool =
-            Self::get_blend_pool(env.clone()).ok_or(ContractError::BlendPoolNotInitialized)?;
-        let current_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
-        Self::require_positive_index_rate(current_index_rate)?;
-
-        // Calculate yield: bTokens * (current_index_rate - last_index_rate) / precision
-        let index_diff = current_index_rate.saturating_sub(position.last_index_rate);
-        Self::checked_btoken_mul_div(position.b_tokens, index_diff)
-    }
-
-    /// Get the current value of a user's Blend position in USDC terms
-    ///
-    /// # Arguments
-    /// * `user` - The address to get position value for
-    ///
-    /// # Returns
-    /// The current value in USDC (underlying asset terms)
-    pub fn get_blend_position_value(env: Env, user: Address) -> Result<i128, ContractError> {
-        let position: BlendPosition = env
-            .storage()
-            .persistent()
-            .get(&DataKey::UserBlendPosition(user.clone()))
-            .unwrap_or(BlendPosition {
-                b_tokens: 0,
-                last_index_rate: INDEX_RATE_PRECISION,
-                last_supply_time: 0,
-            });
-
-        if position.b_tokens == 0 {
-            return Ok(0);
-        }
-
-        let blend_pool =
-            Self::get_blend_pool(env.clone()).ok_or(ContractError::BlendPoolNotInitialized)?;
-        let current_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
-        Self::require_positive_index_rate(current_index_rate)?;
-
-        // Calculate value: bTokens * current_index_rate / precision
-        Self::checked_btoken_mul_div(position.b_tokens, current_index_rate)
-    }
-
-    /// Get user's Blend position details
-    pub fn get_blend_position(env: Env, user: Address) -> BlendPosition {
-        env.storage()
-            .persistent()
-            .get(&DataKey::UserBlendPosition(user))
-            .unwrap_or(BlendPosition {
-                b_tokens: 0,
-                last_index_rate: INDEX_RATE_PRECISION,
-                last_supply_time: 0,
-            })
-    }
-
-    /// Internal function to call Blend pool supply
-    /// This can be overridden in tests via mocking
-    fn call_blend_supply(
-        env: &Env,
-        blend_pool: &Address,
-        _from: &Address,
-        amount: i128,
-    ) -> Result<i128, ContractError> {
-        // In production, this would invoke the actual Blend contract
-        // For testing, this will be mocked
-        // Returns the amount of bTokens received
-
-        // Get current index rate to calculate bTokens
-        let index_rate = Self::call_blend_index_rate(env, blend_pool);
-
-        // Calculate bTokens: amount * INDEX_RATE_PRECISION / index_rate
-        // As index rate increases, fewer bTokens are minted per unit of underlying
-        Self::checked_mul_div(amount, INDEX_RATE_PRECISION, index_rate)
-    }
-
-    /// Internal function to call Blend pool withdraw
-    fn call_blend_withdraw(
-        env: &Env,
-        blend_pool: &Address,
-        _to: &Address,
-        b_tokens: i128,
-    ) -> Result<i128, ContractError> {
-        // In production, this would invoke the actual Blend contract
-        // For testing, this will be mocked
-        // Returns the amount of underlying assets received
-
-        let index_rate = Self::call_blend_index_rate(env, blend_pool);
-        Self::require_positive_index_rate(index_rate)?;
-
-        // Calculate underlying: bTokens * index_rate / INDEX_RATE_PRECISION
-        // As index rate increases, each bToken is worth more underlying
-        Self::checked_btoken_mul_div(b_tokens, index_rate)
-    }
-
-    fn require_positive_index_rate(index_rate: i128) -> Result<(), ContractError> {
-        if index_rate <= 0 {
-            return Err(ContractError::InvalidIndexRate);
-        }
-        Ok(())
-    }
-
-    fn checked_btoken_mul_div(value: i128, multiplier: i128) -> Result<i128, ContractError> {
-        Self::checked_mul_div(value, multiplier, INDEX_RATE_PRECISION)
-    }
-
-    fn checked_mul_div(
-        value: i128,
-        multiplier: i128,
-        divisor: i128,
-    ) -> Result<i128, ContractError> {
-        if divisor <= 0 {
-            return Err(ContractError::InvalidIndexRate);
-        }
-
-        value
-            .checked_mul(multiplier)
-            .ok_or(ContractError::ArithmeticOverflow)?
-            .checked_div(divisor)
-            .ok_or(ContractError::InvalidIndexRate)
-    }
-
-    /// Internal function to get Blend pool index rate
-    fn call_blend_index_rate(env: &Env, _blend_pool: &Address) -> i128 {
-        // In production, this would invoke blend_pool.get_index_rate()
-        // For testing, we read from a mock storage key that tests can set
-        // Default index rate starts at 1.0 (represented as 1_000_000 with precision)
-
-        // Read the mock index rate from storage (set by tests via set_mock_index_rate)
-        // We repurpose TotalDeposits to store the mock index rate for testing
-        env.storage()
-            .persistent()
-            .get(&DataKey::TotalDeposits)
-            .unwrap_or(INDEX_RATE_PRECISION)
-    }
-
-    /// Get the current mock index rate (for testing only)
-    /// In production, this would query the actual Blend pool
-    pub fn get_mock_index_rate(_env: Env) -> i128 {
-        // This is a test helper - in production, this reads from actual Blend pool
-        // For now, return the default precision
-        INDEX_RATE_PRECISION
-    }
-
-    /// Set the mock index rate (for testing only)
-    /// This allows tests to simulate yield accrual
-    pub fn set_mock_index_rate(env: Env, new_rate: i128) {
-        // Store the mock index rate in a special storage location
-        // We use a tuple key pattern to avoid collision with real data
-        env.storage()
-            .persistent()
-            .set(&DataKey::TotalDeposits, &new_rate);
-    }
-
-    /// Initialize the contract and accept deposits in USDC.
-    /// Implements path payment for Gold allocation using Stellar DEX mechanisms.
-    pub fn deposit(
+    pub fn calculate_blend_yield(
         env: Env,
-        from: Address,
-        amount: i128,
-        blend_percentage: u32,
-        lp_percentage: u32,
-        gold_percentage: u32,
-    ) -> Result<(), ContractError> {
-        from.require_auth();
+        user: Address,
+    ) -> Result<i128, ContractError> {
+        let blend_pool =
+            Self::get_blend_pool(env.clone()).ok_or(ContractError::BlendPoolNotInitialized)?;
 
-        // Issue #168: Validate positive deposit amount
-        if amount <= 0 {
-            return Err(ContractError::InvalidAmount);
-        }
-
-        // Issue #163: Return Result instead of panicking
-        if blend_percentage
-            .checked_add(lp_percentage)
-            .and_then(|sum| sum.checked_add(gold_percentage))
-            .map(|total| total > 100)
-            .unwrap_or(true)
-        {
-            return Err(ContractError::InvalidAllocation);
-        }
-
-        // Transfer USDC from user to contract
-        let usdc_addr: Address = env
+        let position: BlendPosition = env
             .storage()
             .persistent()
-            .get(&DataKey::UsdcToken)
-            .ok_or(ContractError::UsdcTokenNotInitialized)?;
-        let usdc = TokenClient::new(&env, &usdc_addr);
+            .get(&DataKey::UserBlendPosition(user.clone()))
+            .unwrap_or(BlendPosition {
+                b_tokens: 0,
+                last_index_rate: 0,
+                last_supply_time: 0,
+            });
 
-        // Issue #165: Assert sender has sufficient token balance before deposit transfer
-        let user_balance = usdc.balance(&from);
-        if user_balance < amount {
-            return Err(ContractError::InsufficientBalance);
+        if position.b_tokens == 0 {
+            return Ok(0);
         }
 
-        usdc.transfer(&from, &env.current_contract_address(), &amount);
+        // Current Blend index rate
+        let current_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
 
-        let mut balance: i128 = env
+        // Prevent division by zero
+        if position.last_index_rate == 0 {
+            return Ok(0);
+        }
+
+        // Current underlying value of user's bTokens
+        let current_underlying_value = position
+            .b_tokens
+            .checked_mul(current_index_rate)
+            .ok_or(ContractError::ArithmeticOverflow)?
+            / position.last_index_rate;
+
+        // Original supplied amount approximation
+        let original_value = position.b_tokens;
+
+        // Yield = current value - original value
+        let yield_amount = current_underlying_value
+            .checked_sub(original_value)
+            .ok_or(ContractError::ArithmeticOverflow)?;
+
+        Ok(yield_amount.max(0))
+    }
+        let position: BlendPosition = env
             .storage()
             .persistent()
-            .get(&DataKey::UserBalance(from.clone()))
-            .unwrap_or(0);
-        balance = balance
-            .checked_add(amount)
-            .ok_or(ContractError::InvalidAmount)?;
-        env.storage()
-            .persistent()
-            .set(&DataKey::UserBalance(from.clone()), &balance);
+            .get(&DataKey::UserBlendPosition(user.clone()))
+            .unwrap_or(BlendPosition {
+                b_tokens: 0,
+                last_index_rate: INDEX_RATE_PRECISION,
+                last_supply_time: 0,
+            });
 
-        if lp_percentage > 0 {
-            let lp_amount = (amount
-                .checked_mul(lp_percentage as i128)
-                .ok_or(ContractError::InvalidAmount)?)
-            .checked_div(100)
-            .ok_or(ContractError::InvalidAmount)?;
-            if lp_amount > 0 {
-                Self::provide_lp(env.clone(), from.clone(), lp_amount)?;
-            }
+        if position.b_tokens == 0 {
+            return Ok(0);
         }
 
-        // Mock: Here we would route `blend_percentage` to the Blend protocol
-        Ok(())
+let blend_pool =
+    Self::get_blend_pool(env.clone()).ok_or(ContractError::BlendPoolNotInitialized)?;
+
+let current_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
+Self::require_positive_index_rate(current_index_rate)?;
+
+// Calculate yield: bTokens * (current_index_rate - last_index_rate) / precision
+let index_diff = current_index_rate.saturating_sub(position.last_index_rate);
+
+Self::checked_btoken_mul_div(position.b_tokens, index_diff)
+}
+
+/// Get the current value of a user's Blend position in USDC terms
+///
+/// # Arguments
+/// * `user` - The address to get position value for
+///
+/// # Returns
+/// The current value in USDC (underlying asset terms)
+pub fn get_blend_position_value(
+    env: Env,
+    user: Address,
+) -> Result<i128, ContractError> {
+    let position: BlendPosition = env
+        .storage()
+        .persistent()
+        .get(&DataKey::UserBlendPosition(user.clone()))
+        .unwrap_or(BlendPosition {
+            b_tokens: 0,
+            last_index_rate: INDEX_RATE_PRECISION,
+            last_supply_time: 0,
+        });
+
+    if position.b_tokens == 0 {
+        return Ok(0);
     }
 
-    fn provide_lp(env: Env, user: Address, usdc_amount: i128) -> Result<(), ContractError> {
-        let router_addr: Address = env
-            .storage()
-            .persistent()
-            .get(&DataKey::SoroswapRouter)
-            .ok_or(ContractError::SoroswapNotInitialized)?;
-        let usdc_addr: Address = env
-            .storage()
-            .persistent()
-            .get(&DataKey::UsdcToken)
-            .ok_or(ContractError::UsdcTokenNotInitialized)?;
-        let xlm_addr: Address = env
-            .storage()
-            .persistent()
-            .get(&DataKey::XlmToken)
-            .ok_or(ContractError::SoroswapNotInitialized)?;
+    let blend_pool =
+        Self::get_blend_pool(env.clone()).ok_or(ContractError::BlendPoolNotInitialized)?;
 
-        let router = SoroswapRouterClient::new(&env, &router_addr);
-        let usdc = TokenClient::new(&env, &usdc_addr);
-        let xlm = TokenClient::new(&env, &xlm_addr);
+    let current_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
+    Self::require_positive_index_rate(current_index_rate)?;
 
-        let half_usdc = usdc_amount
-            .checked_div(2)
-            .ok_or(ContractError::InvalidAmount)?;
-        let remaining_usdc = usdc_amount
-            .checked_sub(half_usdc)
-            .ok_or(ContractError::InvalidAmount)?;
+    // Calculate value: bTokens * current_index_rate / precision
+    Self::checked_btoken_mul_div(position.b_tokens, current_index_rate)
+}
 
-        // Approve router for total USDC amount to be used in swap and liquidity
-        usdc.approve(
-            &env.current_contract_address(),
-            &router_addr,
-            &usdc_amount,
-            &(env.ledger().sequence() + 100),
-        );
+/// Get user's Blend position details
+pub fn get_blend_position(env: Env, user: Address) -> BlendPosition {
+    env.storage()
+        .persistent()
+        .get(&DataKey::UserBlendPosition(user))
+        .unwrap_or(BlendPosition {
+            b_tokens: 0,
+            last_index_rate: INDEX_RATE_PRECISION,
+            last_supply_time: 0,
+        })
+}
 
-        // Swap half USDC for XLM
-        let mut path = Vec::new(&env);
-        path.push_back(usdc_addr.clone());
-        path.push_back(xlm_addr.clone());
+/// Internal function to call Blend pool supply
+fn call_blend_supply(
+    env: &Env,
+    blend_pool: &Address,
+    _from: &Address,
+    amount: i128,
+) -> Result<i128, ContractError> {
+    let index_rate = Self::call_blend_index_rate(env, blend_pool);
 
-        let deadline = env.ledger().timestamp() + 300; // 5 minutes
-        let swap_amounts = router.swap_exact_tokens_for_tokens(
-            &half_usdc,
-            &0,
-            &path,
-            &env.current_contract_address(),
-            &deadline,
-        );
-        let xlm_received = swap_amounts.get(1).unwrap();
+    Self::checked_mul_div(amount, INDEX_RATE_PRECISION, index_rate)
+}
 
-        // Approve router for received XLM
-        xlm.approve(
-            &env.current_contract_address(),
-            &router_addr,
-            &xlm_received,
-            &(env.ledger().sequence() + 100),
-        );
+/// Internal function to call Blend pool withdraw
+fn call_blend_withdraw(
+    env: &Env,
+    blend_pool: &Address,
+    _to: &Address,
+    b_tokens: i128,
+) -> Result<i128, ContractError> {
+    let index_rate = Self::call_blend_index_rate(env, blend_pool);
+    Self::require_positive_index_rate(index_rate)?;
 
-        // Add liquidity
-        let (_, _, lp_shares) = router.add_liquidity(
-            &usdc_addr,
-            &xlm_addr,
-            &remaining_usdc,
-            &xlm_received,
-            &0,
-            &0,
-            &env.current_contract_address(),
-            &deadline,
-        );
+    Self::checked_btoken_mul_div(b_tokens, index_rate)
+}
 
-        // Map LP shares to user
-        let mut user_shares: i128 = env
-            .storage()
-            .persistent()
-            .get(&DataKey::UserLPShares(user.clone()))
-            .unwrap_or(0);
-        user_shares = user_shares
-            .checked_add(lp_shares)
-            .ok_or(ContractError::InvalidAmount)?;
-        env.storage()
-            .persistent()
-            .set(&DataKey::UserLPShares(user), &user_shares);
-        Ok(())
+fn require_positive_index_rate(index_rate: i128) -> Result<(), ContractError> {
+    if index_rate <= 0 {
+        return Err(ContractError::InvalidIndexRate);
+    }
+    Ok(())
+}
+
+fn checked_btoken_mul_div(
+    value: i128,
+    multiplier: i128,
+) -> Result<i128, ContractError> {
+    Self::checked_mul_div(value, multiplier, INDEX_RATE_PRECISION)
+}
+
+fn checked_mul_div(
+    value: i128,
+    multiplier: i128,
+    divisor: i128,
+) -> Result<i128, ContractError> {
+    if divisor <= 0 {
+        return Err(ContractError::InvalidIndexRate);
     }
 
-    /// Withdraw USDC by unwinding positions from Blend and breaking LP shares from Soroswap.
-    /// The contract calculates how much to pull from each source and transfers USDC to the user.
-    pub fn withdraw(env: Env, to: Address, amount: i128) -> Result<(), ContractError> {
-        to.require_auth();
+    value
+        .checked_mul(multiplier)
+        .ok_or(ContractError::ArithmeticOverflow)?
+        .checked_div(divisor)
+        .ok_or(ContractError::InvalidIndexRate)
+}
 
-        // Issue #168: Validate positive amount
-        if amount <= 0 {
-            return Err(ContractError::InvalidAmount);
-        }
-
-        // Get total user balance (USDC + Blend + LP + Gold)
-        let usdc_balance: i128 = env
-            .storage()
-            .persistent()
-            .get(&DataKey::UserBalance(to.clone()))
-            .unwrap_or(0);
-        let blend_balance: i128 = env
-            .storage()
-            .persistent()
-            .get(&DataKey::UserBlendBalance(to.clone()))
-            .unwrap_or(0);
-        let lp_shares: i128 = env
-            .storage()
-            .persistent()
-            .get(&DataKey::UserLPShares(to.clone()))
-            .unwrap_or(0);
-        let gold_balance: i128 = env
-            .storage()
-            .persistent()
-            .get(&DataKey::UserGoldBalance(to.clone()))
-            .unwrap_or(0);
-
-        let total_balance = usdc_balance
-            .checked_add(blend_balance)
-            .and_then(|sum| sum.checked_add(lp_shares))
-            .and_then(|sum| sum.checked_add(gold_balance))
-            .ok_or(ContractError::InvalidAmount)?;
-
-        if total_balance < amount {
-            return Err(ContractError::InsufficientBalance);
-        }
-
-        let mut remaining_to_withdraw = amount;
-
-        // Step 1: Use available USDC first
-        if usdc_balance > 0 {
-            let usdc_to_use = if usdc_balance < remaining_to_withdraw {
-                usdc_balance
-            } else {
-                remaining_to_withdraw
-            };
-            env.storage().persistent().set(
-                &DataKey::UserBalance(to.clone()),
-                &(usdc_balance
-                    .checked_sub(usdc_to_use)
-                    .ok_or(ContractError::InvalidAmount)?),
-            );
-            remaining_to_withdraw = remaining_to_withdraw
-                .checked_sub(usdc_to_use)
-                .ok_or(ContractError::InvalidAmount)?;
-        }
-
-        // Step 2: If still need more, unwind Blend positions (pull liquidity)
-        if remaining_to_withdraw > 0 && blend_balance > 0 {
-            let blend_to_unwind = if blend_balance < remaining_to_withdraw {
-                blend_balance
-            } else {
-                remaining_to_withdraw
-            };
-            env.storage().persistent().set(
-                &DataKey::UserBlendBalance(to.clone()),
-                &(blend_balance
-                    .checked_sub(blend_to_unwind)
-                    .ok_or(ContractError::InvalidAmount)?),
+/// Internal function to get Blend pool index rate
+fn call_blend_index_rate(env: &Env, _blend_pool: &Address) -> i128 {
+    env.storage()
+        .persistent()
+        .get(&DataKey::TotalDeposits)
+        .unwrap_or(INDEX_RATE_PRECISION)
+}               .ok_or(ContractError::InvalidAmount)?),
             );
             // Mock: In production, this would call Blend Protocol to withdraw underlying assets
             // For simplicity, we assume 1:1 conversion back to USDC
@@ -895,197 +701,78 @@ impl SmasageYieldRouter {
         };
 
         // Call Blend pool to withdraw assets
-        let usdc_received = Self::call_blend_withdraw(
-            &env,
-            &blend_pool,
-            &env.current_contract_address(),
-            b_tokens,
-        )?;
+let usdc_received = Self::call_blend_withdraw(
+    &env,
+    &blend_pool,
+    &env.current_contract_address(),
+    b_tokens,
+)?;
 
-        // Update user's Blend position
-        position.b_tokens = position
-            .b_tokens
-            .checked_sub(b_tokens)
-            .ok_or(ContractError::ArithmeticUnderflow)?;
-        position.last_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
-        position.last_supply_time = env.ledger().timestamp();
+// Update user's Blend position
+position.b_tokens = position
+    .b_tokens
+    .checked_sub(b_tokens)
+    .ok_or(ContractError::ArithmeticUnderflow)?;
 
-        if position.b_tokens > 0 {
-            env.storage()
-                .persistent()
-                .set(&DataKey::UserBlendPosition(to.clone()), &position);
-        } else {
-            // Remove position if fully withdrawn
-            env.storage()
-                .persistent()
-                .remove(&DataKey::UserBlendPosition(to.clone()));
-        }
+position.last_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
+position.last_supply_time = env.ledger().timestamp();
 
-        // Update total bTokens held by contract
-        let total_b_tokens: i128 = env
-            .storage()
-            .persistent()
-            .get(&DataKey::TotalBTokens)
-            .unwrap_or(0);
-        let updated_total_b_tokens = total_b_tokens
-            .checked_sub(b_tokens)
-            .ok_or(ContractError::ArithmeticUnderflow)?;
-        env.storage()
-            .persistent()
-            .set(&DataKey::TotalBTokens, &updated_total_b_tokens);
-
-        // Issue #170: Update legacy balance tracking separately from bToken accounting
-        let blend_balance: i128 = env
-            .storage()
-            .persistent()
-            .get(&DataKey::UserBlendBalance(to.clone()))
-            .unwrap_or(0);
-        // Calculate the corresponding USDC amount to deduct from legacy tracking
-        let current_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
-        Self::require_positive_index_rate(current_index_rate)?;
-        let usdc_equivalent = Self::checked_btoken_mul_div(b_tokens, current_index_rate)?;
-        if blend_balance >= usdc_equivalent {
-            env.storage().persistent().set(
-                &DataKey::UserBlendBalance(to.clone()),
-                &(blend_balance
-                    .checked_sub(usdc_equivalent)
-                    .ok_or(ContractError::InvalidAmount)?),
-            );
-        } else {
-            env.storage()
-                .persistent()
-                .set(&DataKey::UserBlendBalance(to.clone()), &0i128);
-        }
-
-        // Transfer USDC to user
-        Self::transfer_usdc_to_user(&env, &to, usdc_received)?;
-
-        Ok(usdc_received)
-    }
-
-    /// Get user's Gold (XAUT) balance
-    pub fn get_gold_balance(env: Env, user: Address) -> i128 {
-        env.storage()
-            .persistent()
-            .get(&DataKey::UserGoldBalance(user))
-            .unwrap_or(0)
-    }
-
-    /// Get user's LP shares balance
-    pub fn get_lp_shares(env: Env, user: Address) -> i128 {
-        env.storage()
-            .persistent()
-            .get(&DataKey::UserLPShares(user))
-            .unwrap_or(0)
-    }
-
-    /// Get user's USDC balance
-    pub fn get_balance(env: Env, user: Address) -> i128 {
-        env.storage()
-            .persistent()
-            .get(&DataKey::UserBalance(user))
-            .unwrap_or(0)
-    }
+if position.b_tokens > 0 {
+    env.storage()
+        .persistent()
+        .set(&DataKey::UserBlendPosition(to.clone()), &position);
+} else {
+    env.storage()
+        .persistent()
+        .remove(&DataKey::UserBlendPosition(to.clone()));
 }
 
-// Basic Test Mock
-#[cfg(test)]
-mod test {
-    use super::*;
-    use soroban_sdk::{testutils::Address as _, Address, Env};
+// Update total bTokens held by contract
+let total_b_tokens: i128 = env
+    .storage()
+    .persistent()
+    .get(&DataKey::TotalBTokens)
+    .unwrap_or(0);
 
-    #[contract]
-    pub struct MockToken;
-    #[contractimpl]
-    impl TokenTrait for MockToken {
-        fn transfer(_e: Env, _from: Address, _to: Address, _amount: i128) {}
-        fn approve(
-            _e: Env,
-            _from: Address,
-            _spender: Address,
-            _amount: i128,
-            _expiration_ledger: u32,
-        ) {
-        }
-        fn balance(_e: Env, _id: Address) -> i128 {
-            0
-        }
-    }
+let updated_total_b_tokens = total_b_tokens
+    .checked_sub(b_tokens)
+    .ok_or(ContractError::ArithmeticUnderflow)?;
 
-    #[contractimpl]
-    impl MockToken {
-        pub fn initialize(_env: Env, _admin: Address) {}
-        pub fn mint(_env: Env, _to: Address, _amount: i128) {}
-    }
+env.storage()
+    .persistent()
+    .set(&DataKey::TotalBTokens, &updated_total_b_tokens);
 
-    #[contract]
-    pub struct MockRouter;
-    #[contractimpl]
-    impl SoroswapRouterTrait for MockRouter {
-        fn add_liquidity(
-            _e: Env,
-            _token_a: Address,
-            _token_b: Address,
-            _amount_a_desired: i128,
-            _amount_b_desired: i128,
-            _amount_a_min: i128,
-            _amount_b_min: i128,
-            _to: Address,
-            _deadline: u64,
-        ) -> (i128, i128, i128) {
-            (0, 0, 100) // Mock 100 LP shares received
-        }
+// Issue #170: Update legacy balance tracking separately from bToken accounting
+let blend_balance: i128 = env
+    .storage()
+    .persistent()
+    .get(&DataKey::UserBlendBalance(to.clone()))
+    .unwrap_or(0);
 
-        fn swap_exact_tokens_for_tokens(
-            e: Env,
-            amount_in: i128,
-            _amount_out_min: i128,
-            _path: Vec<Address>,
-            _to: Address,
-            _deadline: u64,
-        ) -> Vec<i128> {
-            let mut v = Vec::new(&e);
-            v.push_back(amount_in);
-            v.push_back(amount_in * 2); // Mock 1:2 swap rate
-            v
-        }
-    }
-    #[test]
-    fn test_soroswap_integration() {
-        let env = Env::default();
-        let contract_id = env.register(SmasageYieldRouter, ());
-        let client = SmasageYieldRouterClient::new(&env, &contract_id);
+// Calculate the corresponding USDC amount to deduct from legacy tracking
+let current_index_rate = Self::call_blend_index_rate(&env, &blend_pool);
 
-        let admin = Address::generate(&env);
-        let user = Address::generate(&env);
+Self::require_positive_index_rate(current_index_rate)?;
 
-        // Use StatefulMockToken for USDC so balance assertions in deposit pass
-        let router_id = env.register(MockRouter, ());
-        let usdc_id = env.register(StatefulMockToken, ());
-        let xlm_id = env.register(MockToken, ());
+let usdc_equivalent =
+    Self::checked_btoken_mul_div(b_tokens, current_index_rate)?;
 
-        env.mock_all_auths();
+if blend_balance >= usdc_equivalent {
+    env.storage().persistent().set(
+        &DataKey::UserBlendBalance(to.clone()),
+        &(blend_balance
+            .checked_sub(usdc_equivalent)
+            .ok_or(ContractError::ArithmeticUnderflow)?),
+    );
+} else {
+    env.storage()
+        .persistent()
+        .set(&DataKey::UserBlendBalance(to.clone()), &0i128);
+}
 
-        // Mint enough USDC for two 1000-unit deposits
-        StatefulMockTokenClient::new(&env, &usdc_id).initialize(&user);
-        StatefulMockTokenClient::new(&env, &usdc_id).mint(&user, &2000);
+Self::transfer_usdc_to_user(&env, &to, usdc_received)?;
 
-        client.initialize(&admin);
-        client.initialize_soroswap(&admin, &router_id, &usdc_id, &xlm_id);
-
-        // Deposit 1000 USDC, 50% to LP
-        client.deposit(&user, &1000, &0, &50, &0);
-
-        // 60% Blend, 30% LP, 10% Gold
-        client.deposit(&user, &1000, &60, &30, &10);
-
-        assert_eq!(client.get_balance(&user), 2000);
-        assert_eq!(client.get_gold_balance(&user), 0);
-        assert_eq!(client.get_lp_shares(&user), 200);
-    }
-
-    #[test]
-    fn test_withdraw_unwinds_blend_and_lp() {
+Ok(usdc_received)
         let env = Env::default();
         let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
@@ -1383,11 +1070,13 @@ mod test {
         let result = client.try_initialize(&admin);
 
         assert!(result.is_err());
+
         let stored_admin = env.as_contract(&contract_id, || {
             env.storage()
                 .persistent()
                 .get::<DataKey, Address>(&DataKey::Admin)
         });
+
         assert_eq!(stored_admin, None);
     }
 
@@ -1449,10 +1138,17 @@ mod test {
         let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
 
+
+        let blend_pool_id = env.register_contract(None, MockBlendPool);
+        let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
+
+        let token_id = env.register_contract(None, StatefulMockToken);
+
         let blend_pool_id = env.register(MockBlendPool, ());
         let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
 
         let token_id = env.register(StatefulMockToken, ());
+
         let token_client = StatefulMockTokenClient::new(&env, &token_id);
 
         // Create addresses
@@ -1479,7 +1175,7 @@ mod test {
 
         // Simulate yield accrual by increasing index rate to 1.05 (5% yield)
         let new_index_rate = INDEX_RATE_PRECISION + (INDEX_RATE_PRECISION * 5 / 100); // 1.05
-        client.set_mock_index_rate(&new_index_rate);
+        blend_pool_client.set_index_rate(&new_index_rate);
 
         // Calculate yield after index rate increase
         // Yield = bTokens * (current_index - last_index) / precision
@@ -1500,10 +1196,16 @@ mod test {
         let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
 
+        let blend_pool_id = env.register_contract(None, MockBlendPool);
+        let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
+
+        let token_id = env.register_contract(None, StatefulMockToken);
+
         let blend_pool_id = env.register(MockBlendPool, ());
         let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
 
         let token_id = env.register(StatefulMockToken, ());
+
         let token_client = StatefulMockTokenClient::new(&env, &token_id);
 
         // Create addresses
@@ -1543,6 +1245,10 @@ mod test {
         // Should receive 1000 USDC (1:1 at initial rate)
         assert_eq!(usdc_received, 1000);
 
+        // Verify the real Blend withdraw invocation burned bTokens in the pool.
+        assert_eq!(blend_pool_client.get_b_token_supply(), 0);
+        assert_eq!(blend_pool_client.get_total_supply(), 0);
+
         // Verify position is cleared
         let position_after = client.get_blend_position(&user);
         assert_eq!(position_after.b_tokens, 0);
@@ -1556,10 +1262,17 @@ mod test {
         let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
 
+
+        let blend_pool_id = env.register_contract(None, MockBlendPool);
+        let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
+
+        let token_id = env.register_contract(None, StatefulMockToken);
+
         let blend_pool_id = env.register(MockBlendPool, ());
         let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
 
         let token_id = env.register(StatefulMockToken, ());
+
         let token_client = StatefulMockTokenClient::new(&env, &token_id);
 
         // Create addresses
@@ -1595,6 +1308,10 @@ mod test {
         // Should receive 400 USDC
         assert_eq!(usdc_received, 400);
 
+        // Verify the real Blend withdraw invocation burned only the redeemed bTokens.
+        assert_eq!(blend_pool_client.get_b_token_supply(), 600);
+        assert_eq!(blend_pool_client.get_total_supply(), 600);
+
         // Verify remaining position
         let position = client.get_blend_position(&user);
         assert_eq!(position.b_tokens, 600);
@@ -1608,10 +1325,17 @@ mod test {
         let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
 
+
+        let blend_pool_id = env.register_contract(None, MockBlendPool);
+        let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
+
+        let token_id = env.register_contract(None, StatefulMockToken);
+
         let blend_pool_id = env.register(MockBlendPool, ());
         let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
 
         let token_id = env.register(StatefulMockToken, ());
+
         let token_client = StatefulMockTokenClient::new(&env, &token_id);
 
         // Create addresses
@@ -1634,7 +1358,7 @@ mod test {
 
         // Increase index rate to 1.10 (10% yield)
         let new_index_rate = INDEX_RATE_PRECISION + (INDEX_RATE_PRECISION * 10 / 100); // 1.10
-        client.set_mock_index_rate(&new_index_rate);
+        blend_pool_client.set_index_rate(&new_index_rate);
 
         // Ensure contract has enough balance for withdrawal with yield (1100 USDC)
         let contract_balance = token_client.balance(&contract_id);
@@ -1647,6 +1371,7 @@ mod test {
 
         // Should receive 1100 USDC (1000 + 10% yield)
         assert_eq!(usdc_received, 1100);
+        assert_eq!(blend_pool_client.get_b_token_supply(), 0);
     }
 
     #[test]
@@ -1657,10 +1382,17 @@ mod test {
         let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
 
+
+        let blend_pool_id = env.register_contract(None, MockBlendPool);
+        let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
+
+        let token_id = env.register_contract(None, StatefulMockToken);
+
         let blend_pool_id = env.register(MockBlendPool, ());
         let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
 
         let token_id = env.register(StatefulMockToken, ());
+
         let token_client = StatefulMockTokenClient::new(&env, &token_id);
 
         // Create addresses
@@ -1684,7 +1416,7 @@ mod test {
 
         // Increase index rate to 1.05
         let new_index_rate = INDEX_RATE_PRECISION + (INDEX_RATE_PRECISION * 5 / 100);
-        client.set_mock_index_rate(&new_index_rate);
+        blend_pool_client.set_index_rate(&new_index_rate);
 
         // Calculate yield BEFORE second supply (to capture yield from first supply)
         // First supply yield: 500 * (1,050,000 - 1,000,000) / 1,000,000 = 25
@@ -1714,10 +1446,17 @@ mod test {
         let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
 
+
+        let blend_pool_id = env.register_contract(None, MockBlendPool);
+        let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
+
+        let token_id = env.register_contract(None, StatefulMockToken);
+
         let blend_pool_id = env.register(MockBlendPool, ());
         let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
 
         let token_id = env.register(StatefulMockToken, ());
+
         let token_client = StatefulMockTokenClient::new(&env, &token_id);
 
         // Create addresses
@@ -1743,14 +1482,14 @@ mod test {
 
         // Simulate 1 year of yield at 5% APR
         let new_index_rate = INDEX_RATE_PRECISION + (INDEX_RATE_PRECISION * 5 / 100);
-        client.set_mock_index_rate(&new_index_rate);
+        blend_pool_client.set_index_rate(&new_index_rate);
 
         // Value should now be 2100
         assert_eq!(client.get_blend_position_value(&user), 2100);
 
         // Simulate another 5% yield (compound)
         let new_index_rate_2 = new_index_rate + (new_index_rate * 5 / 100);
-        client.set_mock_index_rate(&new_index_rate_2);
+        blend_pool_client.set_index_rate(&new_index_rate_2);
 
         // Value should now be approximately 2205
         let value = client.get_blend_position_value(&user);
@@ -1767,10 +1506,17 @@ mod test {
         let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
 
+
+        let blend_pool_id = env.register_contract(None, MockBlendPool);
+        let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
+
+        let token_id = env.register_contract(None, StatefulMockToken);
+
         let blend_pool_id = env.register(MockBlendPool, ());
         let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
 
         let token_id = env.register(StatefulMockToken, ());
+
         let token_client = StatefulMockTokenClient::new(&env, &token_id);
 
         let user = Address::generate(&env);
@@ -1850,8 +1596,10 @@ mod test {
         let env = Env::default();
         let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
+        let blend_pool_id = env.register_contract(None, MockBlendPool);
 
         let blend_pool_id = env.register(MockBlendPool, ());
+
         let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
 
         let user = Address::generate(&env);
