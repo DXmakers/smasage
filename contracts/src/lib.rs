@@ -963,7 +963,7 @@ mod test {
         let initial_yield = client.calculate_blend_yield(&user);
         assert_eq!(initial_yield, 0);
 
-        // Simulate yield accrual by increasing index rate to 1.05 (5% yield)
+        // Accrue yield on the mock pool (5% index bump), not via router storage.
         let new_index_rate = INDEX_RATE_PRECISION + (INDEX_RATE_PRECISION * 5 / 100); // 1.05
         blend_pool_client.set_index_rate(&new_index_rate);
 
