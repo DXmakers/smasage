@@ -25,6 +25,17 @@ pub trait SoroswapRouterTrait {
         to: Address,
         deadline: u64,
     ) -> Vec<i128>;
+
+    fn remove_liquidity(
+        e: Env,
+        token_a: Address,
+        token_b: Address,
+        lp_shares: i128,
+        amount_a_min: i128,
+        amount_b_min: i128,
+        to: Address,
+        deadline: u64,
+    ) -> (i128, i128);
 }
 
 #[soroban_sdk::contractclient(name = "TokenClient")]
@@ -384,14 +395,16 @@ impl SmasageYieldRouter {
         // Approve router for received XLM
         xlm.approve(&env.current_contract_address(), &router_addr, &xlm_received, &(env.ledger().sequence() + 100));
 
-        // Add liquidity
+        // Add liquidity with minimum amounts (1% slippage)
+        let usdc_min = remaining_usdc * 99 / 100;
+        let xlm_min = xlm_received * 99 / 100;
         let (_, _, lp_shares) = router.add_liquidity(
             &usdc_addr,
             &xlm_addr,
             &remaining_usdc,
             &xlm_received,
-            &0,
-            &0,
+            &usdc_min,
+            &xlm_min,
             &env.current_contract_address(),
             &deadline,
         );
@@ -447,12 +460,15 @@ impl SmasageYieldRouter {
             let usdc_addr: Address = env.storage().persistent().get(&DataKey::UsdcToken).expect("USDC not initialized");
             let xlm_addr: Address = env.storage().persistent().get(&DataKey::XlmToken).expect("XLM not initialized");
             
+            // Remove liquidity with minimum amounts (1% slippage)
+            let usdc_min = lp_to_break * 99 / 100;
+            let xlm_min = lp_to_break * 99 / 100;
             let (amount_usdc, amount_xlm) = router.remove_liquidity(
                 &usdc_addr,
                 &xlm_addr,
                 &lp_to_break,
-                &0,
-                &0,
+                &usdc_min,
+                &xlm_min,
                 &env.current_contract_address(),
                 &deadline,
             );
