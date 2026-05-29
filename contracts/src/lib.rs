@@ -44,7 +44,7 @@ pub trait BlendPoolInterface {
     /// Supply assets to the Blend pool from `from` and return bTokens minted.
     fn supply(env: Env, from: Address, amount: i128) -> i128;
     
-    /// Withdraw assets from the Blend pool by redeeming bTokens
+    /// Redeem bTokens from the Blend pool to `to` and return underlying received.
     fn withdraw(env: Env, to: Address, b_tokens: i128) -> i128;
     
     /// Current index rate: underlying-per-bToken exchange scale (see INDEX_RATE_PRECISION).
@@ -362,8 +362,8 @@ impl SmasageYieldRouter {
         let usdc_token = Self::get_usdc_token(env.clone())
             .expect("USDC token not initialized");
         let token_client = TokenClient::new(env, &usdc_token);
-        let expiration = env.ledger().sequence() + 100;
-        token_client.approve(spender, blend_pool, &amount, &expiration);
+        let expiration_ledger = env.ledger().sequence() + 100;
+        token_client.approve(spender, blend_pool, &amount, &expiration_ledger);
     }
 
     /// Supply underlying assets to the configured Blend pool and return bTokens minted.
