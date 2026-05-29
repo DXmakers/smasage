@@ -786,7 +786,7 @@ mod test {
         }
     }
 
-    /// Mock Blend Pool contract for testing
+    /// Stand-in Blend pool used only by #[cfg(test)] integration tests.
     mod mock_blend_pool {
         use soroban_sdk::{contract, contractimpl, contracttype, Env, Address};
         use super::super::INDEX_RATE_PRECISION;
