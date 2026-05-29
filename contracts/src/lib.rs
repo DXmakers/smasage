@@ -360,6 +360,13 @@ impl SmasageYieldRouter {
         let usdc_token =
             Self::get_usdc_token(env.clone()).ok_or(ContractError::UsdcTokenNotInitialized)?;
         let token_client = TokenClient::new(env, &usdc_token);
+
+        // Issue #165: Assert sender has sufficient balance before initiating transfer
+        let sender_balance = token_client.balance(from);
+        if sender_balance < amount {
+            return Err(ContractError::InsufficientBalance);
+        }
+
         token_client.transfer(from, &env.current_contract_address(), &amount);
         Ok(())
     }
@@ -590,6 +597,13 @@ impl SmasageYieldRouter {
             .get(&DataKey::UsdcToken)
             .ok_or(ContractError::UsdcTokenNotInitialized)?;
         let usdc = TokenClient::new(&env, &usdc_addr);
+
+        // Issue #165: Assert sender has sufficient token balance before deposit transfer
+        let user_balance = usdc.balance(&from);
+        if user_balance < amount {
+            return Err(ContractError::InsufficientBalance);
+        }
+
         usdc.transfer(&from, &env.current_contract_address(), &amount);
 
         let mut balance: i128 = env
@@ -1045,12 +1059,16 @@ mod test {
         let admin = Address::generate(&env);
         let user = Address::generate(&env);
 
-        // Register mocks
+        // Use StatefulMockToken for USDC so balance assertions in deposit pass
         let router_id = env.register(MockRouter, ());
-        let usdc_id = env.register(MockToken, ());
+        let usdc_id = env.register(StatefulMockToken, ());
         let xlm_id = env.register(MockToken, ());
 
         env.mock_all_auths();
+
+        // Mint enough USDC for two 1000-unit deposits
+        StatefulMockTokenClient::new(&env, &usdc_id).initialize(&user);
+        StatefulMockTokenClient::new(&env, &usdc_id).mint(&user, &2000);
 
         client.initialize(&admin);
         client.initialize_soroswap(&admin, &router_id, &usdc_id, &xlm_id);
@@ -1075,9 +1093,13 @@ mod test {
         let admin = Address::generate(&env);
         let user = Address::generate(&env);
         let router = env.register(MockRouter, ());
-        let usdc = env.register(MockToken, ());
+        let usdc = env.register(StatefulMockToken, ());
         let xlm = env.register(MockToken, ());
         env.mock_all_auths();
+
+        // Mint enough USDC for the single 1000-unit deposit
+        StatefulMockTokenClient::new(&env, &usdc).initialize(&user);
+        StatefulMockTokenClient::new(&env, &usdc).mint(&user, &1000);
 
         client.initialize(&admin);
         client.initialize_soroswap(&admin, &router, &usdc, &xlm);
@@ -1107,9 +1129,13 @@ mod test {
         let admin = Address::generate(&env);
         let user = Address::generate(&env);
         let router = env.register(MockRouter, ());
-        let usdc = env.register(MockToken, ());
+        let usdc = env.register(StatefulMockToken, ());
         let xlm = env.register(MockToken, ());
         env.mock_all_auths();
+
+        // Mint enough USDC for the 2000-unit deposit
+        StatefulMockTokenClient::new(&env, &usdc).initialize(&user);
+        StatefulMockTokenClient::new(&env, &usdc).mint(&user, &2000);
 
         client.initialize(&admin);
         client.initialize_soroswap(&admin, &router, &usdc, &xlm);
@@ -1189,6 +1215,16 @@ mod test {
                     .persistent()
                     .get(&TokenDataKey::Balance(id))
                     .unwrap_or(0)
+            }
+
+            // no-op approve required when this token is used in LP-flow tests
+            pub fn approve(
+                _env: Env,
+                _from: Address,
+                _spender: Address,
+                _amount: i128,
+                _expiration_ledger: u32,
+            ) {
             }
         }
     }
@@ -1954,5 +1990,61 @@ mod test {
 
         let result = client.try_initialize_soroswap(&admin, &router, &usdc, &xlm);
         assert_eq!(result, Ok(()));
+    }
+
+    // ============================================
+    // Issue #165 — Token balance assertions
+    // ============================================
+
+    #[test]
+    fn test_deposit_rejects_insufficient_balance() {
+        let env = Env::default();
+        let contract_id = env.register(SmasageYieldRouter, ());
+        let client = SmasageYieldRouterClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let user = Address::generate(&env);
+        let router = env.register(MockRouter, ());
+        let usdc = env.register(StatefulMockToken, ());
+        let xlm = env.register(MockToken, ());
+
+        env.mock_all_auths();
+
+        // Mint only 100 USDC — less than the 1000 deposit attempt
+        StatefulMockTokenClient::new(&env, &usdc).initialize(&user);
+        StatefulMockTokenClient::new(&env, &usdc).mint(&user, &100);
+
+        client.initialize(&admin);
+        client.initialize_soroswap(&admin, &router, &usdc, &xlm);
+
+        let result = client.try_deposit(&user, &1000, &0, &0, &0);
+        assert_eq!(result, Err(Ok(ContractError::InsufficientBalance)));
+    }
+
+    #[test]
+    fn test_supply_to_blend_rejects_insufficient_balance() {
+        let env = Env::default();
+        let contract_id = env.register(SmasageYieldRouter, ());
+        let client = SmasageYieldRouterClient::new(&env, &contract_id);
+
+        let blend_pool_id = env.register(MockBlendPool, ());
+        let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
+
+        let token_id = env.register(StatefulMockToken, ());
+        let token_client = StatefulMockTokenClient::new(&env, &token_id);
+
+        let user = Address::generate(&env);
+
+        env.mock_all_auths();
+
+        // Mint only 100 USDC — less than the 1000 supply attempt
+        token_client.initialize(&user);
+        token_client.mint(&user, &100);
+
+        blend_pool_client.initialize(&INDEX_RATE_PRECISION);
+        client.initialize_blend(&blend_pool_id, &token_id);
+
+        let result = client.try_supply_to_blend(&user, &1000);
+        assert_eq!(result, Err(Ok(ContractError::InsufficientBalance)));
     }
 }
