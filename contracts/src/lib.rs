@@ -1,7 +1,14 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, Env, String, Symbol, Vec,
+    contract, contractimpl, contracttype, symbol_short, Address, Env, String, Symbol, Vec, contracterror,
 };
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[contracterror]
+pub enum Error {
+    DeadlineExpired = 1,
+    Overflow = 2,
+}
 
 #[soroban_sdk::contractclient(name = "SoroswapRouterClient")]
 pub trait SoroswapRouterTrait {
@@ -344,17 +351,26 @@ impl SmasageYieldRouter {
         usdc.transfer(&from, &env.current_contract_address(), &amount);
 
         let mut balance: i128 = env.storage().persistent().get(&DataKey::UserBalance(from.clone())).unwrap_or(0);
-        balance = balance.checked_add(amount).ok_or(Error::Overflow)?;
+        
+        // Calculate amounts for each allocation
+        let lp_amount = (amount * lp_percentage as i128) / 100;
+        let blend_amount = (amount * blend_percentage as i128) / 100;
+        let remainder = amount - lp_amount - blend_amount;
+        
+        // Keep remainder in USDC balance
+        balance = balance.checked_add(remainder).ok_or(Error::Overflow)?;
         env.storage().persistent().set(&DataKey::UserBalance(from.clone()), &balance);
         
-        if lp_percentage > 0 {
-            let lp_amount = (amount * lp_percentage as i128) / 100;
-            if lp_amount > 0 {
-                Self::provide_lp(env.clone(), from.clone(), lp_amount, deadline)?;
-            }
+        // Process LP allocation
+        if lp_amount > 0 {
+            Self::provide_lp(env.clone(), from.clone(), lp_amount, deadline)?;
         }
-
-        // Mock: Here we would route `blend_percentage` to the Blend protocol
+        
+        // Process Blend allocation
+        if blend_amount > 0 {
+            Self::supply_to_blend(env.clone(), from.clone(), blend_amount);
+        }
+        
         Ok(())
     }
 
