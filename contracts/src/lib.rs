@@ -352,7 +352,7 @@ impl SmasageYieldRouter {
             })
     }
 
-    /// Approve the Blend pool to pull USDC from `spender` before supplying.
+    /// Approve the Blend pool to pull USDC from `spender` (router) before supplying.
     fn approve_blend_pool_spend(
         env: &Env,
         spender: &Address,
@@ -373,7 +373,7 @@ impl SmasageYieldRouter {
         blend_client.supply(from, &amount)
     }
 
-    /// Redeem bTokens from the Blend pool and return underlying assets received.
+    /// Redeem bTokens via the Blend pool and return underlying assets received.
     fn call_blend_withdraw(env: &Env, blend_pool: &Address, to: &Address, b_tokens: i128) -> i128 {
         let blend_client = BlendPoolClient::new(env, blend_pool);
         blend_client.withdraw(to, &b_tokens)
