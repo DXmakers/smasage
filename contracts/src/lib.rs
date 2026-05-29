@@ -39,6 +39,7 @@ pub trait TokenTrait {
 
 /// Blend Pool interface for supplying and withdrawing assets
 /// This trait defines the interface for interacting with the Blend Protocol
+#[soroban_sdk::contractclient(name = "BlendPoolClient")]
 pub trait BlendPoolInterface {
     /// Supply assets to the Blend pool and receive bTokens
     fn supply(env: Env, from: Address, amount: i128) -> i128;
