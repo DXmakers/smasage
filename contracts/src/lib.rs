@@ -378,7 +378,9 @@ impl SmasageYieldRouter {
         path.push_back(usdc_addr.clone());
         path.push_back(xlm_addr.clone());
 
-        let swap_amounts = router.swap_exact_tokens_for_tokens(&half_usdc, &0, &path, &env.current_contract_address(), &deadline);
+        // Calculate slippage: 1% (99% of expected output)
+        let usdc_to_xlm_slippage = half_usdc * 99 / 100;
+        let swap_amounts = router.swap_exact_tokens_for_tokens(&half_usdc, &usdc_to_xlm_slippage, &path, &env.current_contract_address(), &deadline);
         let xlm_received = swap_amounts.get(1).unwrap();
 
         // Approve router for received XLM
@@ -464,7 +466,9 @@ impl SmasageYieldRouter {
             let xlm = TokenClient::new(&env, &xlm_addr);
             xlm.approve(&env.current_contract_address(), &router_addr, &amount_xlm, &(env.ledger().sequence() + 100));
             
-            let swap_amounts = router.swap_exact_tokens_for_tokens(&amount_xlm, &0, &path, &env.current_contract_address(), &deadline);
+            // Calculate slippage: 1% (99% of expected output)
+            let xlm_to_usdc_slippage = amount_xlm * 99 / 100;
+            let swap_amounts = router.swap_exact_tokens_for_tokens(&amount_xlm, &xlm_to_usdc_slippage, &path, &env.current_contract_address(), &deadline);
             let usdc_received = swap_amounts.get(1).unwrap();
             
             let total_usdc_recovered = amount_usdc.checked_add(usdc_received).ok_or(Error::Overflow)?;
