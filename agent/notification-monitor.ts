@@ -1,21 +1,27 @@
 /**
  * Notification Monitor Service
- * Runs the WebSocket server and monitors user goals for proactive notifications
+ * Runs the WebSocket server and monitors user goals for proactive notifications.
+ *
+ * Wiring (Issues #145, #146, #147):
+ *   - `loadAgentEnv` validates configuration up-front with a single multi-line
+ *     error instead of an ad-hoc `process.env.X` check.
+ *   - `createLogger` emits structured JSON log lines so operators can ingest
+ *     them without parsing free-form strings.
+ *   - `registerGracefulShutdown` collapses the previously-duplicated SIGTERM
+ *     and SIGINT blocks into a single, idempotent, timeout-capped handler.
  */
 
 import { createServer } from 'http';
 import { NotificationServer } from './websocket-server.js';
-import { projectGoalStatus, type GoalProjection } from './goal-projection.js';
+import { type GoalProjection } from './goal-projection.js';
 import { type UserGoal } from './notification-service.js';
 import { generateProactiveMessage } from './agent-service.js';
+import { loadAgentEnv } from './env.js';
+import { createLogger } from './logger.js';
+import { registerGracefulShutdown } from './graceful-shutdown.js';
 
-const PORT = parseInt(process.env.NOTIFICATION_PORT || '3001', 10);
-const API_KEY = process.env.GEMINI_API_KEY;
-
-if (!API_KEY) {
-  console.error('ERROR: GEMINI_API_KEY is not set in .env file');
-  process.exit(1);
-}
+const env = loadAgentEnv();
+const log = createLogger('notification-monitor');
 
 // Create HTTP server for WebSocket
 const httpServer = createServer();
@@ -48,11 +54,11 @@ async function triggerProactiveMessage(
         projection.requiredMonthlyContribution - goal.monthlyContribution
       ),
     },
-    API_KEY
+    env.GEMINI_API_KEY
   );
 
   // Send notification through WebSocket
-  const client = (notificationServer as any).clients?.get(goal.userId);
+  const client = (notificationServer as unknown as { clients?: Map<string, unknown> }).clients?.get(goal.userId);
   if (client) {
     notificationServer.broadcastMessage({
       type: 'agent-message',
@@ -70,6 +76,9 @@ async function triggerProactiveMessage(
         },
       },
     });
+    log.info('proactive message sent', { userId: goal.userId, shortfall: projection.shortfall });
+  } else {
+    log.warn('proactive message dropped: no active client', { userId: goal.userId });
   }
 }
 
@@ -77,36 +86,31 @@ async function triggerProactiveMessage(
  * Start monitoring service
  */
 function startMonitoring(): void {
-  httpServer.listen(PORT, () => {
-    console.log(`✅ Notification Server listening on ws://localhost:${PORT}`);
+  httpServer.listen(env.NOTIFICATION_PORT, () => {
+    log.info('notification server listening', { port: env.NOTIFICATION_PORT });
   });
 
-  // Graceful shutdown
-  process.on('SIGTERM', () => {
-    console.log('SIGTERM received, shutting down gracefully...');
-    notificationServer.shutdown();
-    httpServer.close(() => {
-      console.log('Server closed');
-      process.exit(0);
-    });
-  });
-
-  process.on('SIGINT', () => {
-    console.log('SIGINT received, shutting down gracefully...');
-    notificationServer.shutdown();
-    httpServer.close(() => {
-      console.log('Server closed');
-      process.exit(0);
-    });
+  registerGracefulShutdown({
+    logger: log,
+    handlers: [
+      async () => {
+        log.info('shutting down websocket server');
+        notificationServer.shutdown();
+      },
+      () =>
+        new Promise<void>((resolve) => {
+          httpServer.close(() => {
+            log.info('http server closed');
+            resolve();
+          });
+        }),
+    ],
   });
 }
 
 // Start the service
 startMonitoring();
+log.info('notification monitor ready');
 
-console.log(`
-╔══════════════════════════════════════╗
-║  Smasage Notification Monitor       ║
-║  Ready for Proactive Nudges  📊      ║
-╚══════════════════════════════════════╝
-`);
+// Export for tests / smoke verification.
+export { triggerProactiveMessage };

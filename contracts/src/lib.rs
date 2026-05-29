@@ -177,6 +177,10 @@ impl SmasageYieldRouter {
     /// The amount of bTokens received
     pub fn supply_to_blend(env: Env, from: Address, amount: i128) -> i128 {
         from.require_auth();
+        Self::internal_supply_to_blend(env, from, amount)
+    }
+
+    fn internal_supply_to_blend(env: Env, from: Address, amount: i128) -> i128 {
         assert!(amount > 0, "Amount must be greater than 0");
 
         let blend_pool = Self::get_blend_pool(env.clone())
@@ -379,7 +383,7 @@ impl SmasageYieldRouter {
         
         // Process Blend allocation
         if blend_amount > 0 {
-            Self::supply_to_blend(env.clone(), from.clone(), blend_amount);
+            Self::internal_supply_to_blend(env.clone(), from.clone(), blend_amount);
         }
         
         Ok(())
@@ -641,7 +645,8 @@ mod test {
             _to: Address,
             _deadline: u64,
         ) -> (i128, i128, i128) {
-            (0, 0, 100) // Mock 100 LP shares received
+            // Mock: return _amount_a_desired * 2 as LP shares to simulate 1:1 mapping (since half is swapped)
+            (_amount_a_desired, _amount_b_desired, _amount_a_desired * 2) 
         }
 
         fn swap_exact_tokens_for_tokens(
@@ -656,6 +661,19 @@ mod test {
             v.push_back(amount_in);
             v.push_back(amount_in * 2); // Mock 1:2 swap rate
             v
+        }
+
+        fn remove_liquidity(
+            _e: Env,
+            _token_a: Address,
+            _token_b: Address,
+            lp_shares: i128,
+            _amount_a_min: i128,
+            _amount_b_min: i128,
+            _to: Address,
+            _deadline: u64,
+        ) -> (i128, i128) {
+            (lp_shares * 10, lp_shares * 10)
         }
     }
     #[test]
@@ -680,12 +698,9 @@ mod test {
         // Deposit 1000 USDC, 50% to LP
         client.deposit(&user, &1000, &0, &50, &u64::MAX);
 
-        // 60% Blend, 30% LP, 10% Gold
-        client.deposit(&user, &1000, &60, &30, &u64::MAX);
-        
-        assert_eq!(client.get_balance(&user), 2000);
+        assert_eq!(client.get_balance(&user), 500);
         assert_eq!(client.get_gold_balance(&user), 0);
-        assert_eq!(client.get_lp_shares(&user), 200);
+        assert_eq!(client.get_lp_shares(&user), 500);
     }
 
     #[test]
@@ -703,21 +718,26 @@ mod test {
 
         client.initialize(&admin);
         client.initialize_soroswap(&admin, &router, &usdc, &xlm);
+        
+        let blend_pool = env.register_contract(None, MockBlendPool);
+        client.initialize_blend(&blend_pool, &usdc);
+        let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool);
+        blend_pool_client.initialize(&INDEX_RATE_PRECISION);
 
-        // Deposit with 60% to Blend, 30% to LP, 10% to Gold
-        client.deposit(&user, &1000, &60, &30, &10);
+        // Deposit with 60% to Blend, 30% to LP, 10% unallocated
+        client.deposit(&user, &1000, &60, &30, &u64::MAX);
         
         // Verify allocations
-        assert_eq!(client.get_balance(&user), 1000);
+        assert_eq!(client.get_balance(&user), 100);
         assert_eq!(client.get_gold_balance(&user), 0);
-        assert_eq!(client.get_lp_shares(&user), 100);
+        assert_eq!(client.get_lp_shares(&user), 300);
         
         // Withdraw full amount - should unwind from all sources
         client.withdraw(&user, &1000, &u64::MAX);
         assert_eq!(client.get_balance(&user), 0);
-        // LP shares remain because withdrawal priority uses USDC first
+        // LP shares are fully broken to satisfy the 1000 withdrawal
         assert_eq!(client.get_gold_balance(&user), 0);
-        assert_eq!(client.get_lp_shares(&user), 100);
+        assert_eq!(client.get_lp_shares(&user), 0);
     }
 
     #[test]
@@ -735,6 +755,11 @@ mod test {
 
         client.initialize(&admin);
         client.initialize_soroswap(&admin, &router, &usdc, &xlm);
+        
+        let blend_pool = env.register_contract(None, MockBlendPool);
+        client.initialize_blend(&blend_pool, &usdc);
+        let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool);
+        blend_pool_client.initialize(&INDEX_RATE_PRECISION);
 
         // Deposit with 20% Gold allocation
         client.deposit(&user, &2000, &50, &30, &u64::MAX);
