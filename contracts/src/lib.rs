@@ -1,7 +1,14 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, Env, String, Symbol, Vec,
+    contract, contractimpl, contracttype, symbol_short, Address, Env, String, Symbol, Vec, contracterror,
 };
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[contracterror]
+pub enum Error {
+    DeadlineExpired = 1,
+    Overflow = 2,
+}
 
 #[soroban_sdk::contractclient(name = "SoroswapRouterClient")]
 pub trait SoroswapRouterTrait {
@@ -25,6 +32,17 @@ pub trait SoroswapRouterTrait {
         to: Address,
         deadline: u64,
     ) -> Vec<i128>;
+
+    fn remove_liquidity(
+        e: Env,
+        token_a: Address,
+        token_b: Address,
+        lp_shares: i128,
+        amount_a_min: i128,
+        amount_b_min: i128,
+        to: Address,
+        deadline: u64,
+    ) -> (i128, i128);
 }
 
 #[soroban_sdk::contractclient(name = "TokenClient")]
@@ -344,17 +362,26 @@ impl SmasageYieldRouter {
         usdc.transfer(&from, &env.current_contract_address(), &amount);
 
         let mut balance: i128 = env.storage().persistent().get(&DataKey::UserBalance(from.clone())).unwrap_or(0);
-        balance = balance.checked_add(amount).ok_or(Error::Overflow)?;
+        
+        // Calculate amounts for each allocation
+        let lp_amount = (amount * lp_percentage as i128) / 100;
+        let blend_amount = (amount * blend_percentage as i128) / 100;
+        let remainder = amount - lp_amount - blend_amount;
+        
+        // Keep remainder in USDC balance
+        balance = balance.checked_add(remainder).ok_or(Error::Overflow)?;
         env.storage().persistent().set(&DataKey::UserBalance(from.clone()), &balance);
         
-        if lp_percentage > 0 {
-            let lp_amount = (amount * lp_percentage as i128) / 100;
-            if lp_amount > 0 {
-                Self::provide_lp(env.clone(), from.clone(), lp_amount, deadline)?;
-            }
+        // Process LP allocation
+        if lp_amount > 0 {
+            Self::provide_lp(env.clone(), from.clone(), lp_amount, deadline)?;
         }
-
-        // Mock: Here we would route `blend_percentage` to the Blend protocol
+        
+        // Process Blend allocation
+        if blend_amount > 0 {
+            Self::supply_to_blend(env.clone(), from.clone(), blend_amount);
+        }
+        
         Ok(())
     }
 
@@ -378,20 +405,24 @@ impl SmasageYieldRouter {
         path.push_back(usdc_addr.clone());
         path.push_back(xlm_addr.clone());
 
-        let swap_amounts = router.swap_exact_tokens_for_tokens(&half_usdc, &0, &path, &env.current_contract_address(), &deadline);
+        // Calculate slippage: 1% (99% of expected output)
+        let usdc_to_xlm_slippage = half_usdc * 99 / 100;
+        let swap_amounts = router.swap_exact_tokens_for_tokens(&half_usdc, &usdc_to_xlm_slippage, &path, &env.current_contract_address(), &deadline);
         let xlm_received = swap_amounts.get(1).unwrap();
 
         // Approve router for received XLM
         xlm.approve(&env.current_contract_address(), &router_addr, &xlm_received, &(env.ledger().sequence() + 100));
 
-        // Add liquidity
+        // Add liquidity with minimum amounts (1% slippage)
+        let usdc_min = remaining_usdc * 99 / 100;
+        let xlm_min = xlm_received * 99 / 100;
         let (_, _, lp_shares) = router.add_liquidity(
             &usdc_addr,
             &xlm_addr,
             &remaining_usdc,
             &xlm_received,
-            &0,
-            &0,
+            &usdc_min,
+            &xlm_min,
             &env.current_contract_address(),
             &deadline,
         );
@@ -447,12 +478,15 @@ impl SmasageYieldRouter {
             let usdc_addr: Address = env.storage().persistent().get(&DataKey::UsdcToken).expect("USDC not initialized");
             let xlm_addr: Address = env.storage().persistent().get(&DataKey::XlmToken).expect("XLM not initialized");
             
+            // Remove liquidity with minimum amounts (1% slippage)
+            let usdc_min = lp_to_break * 99 / 100;
+            let xlm_min = lp_to_break * 99 / 100;
             let (amount_usdc, amount_xlm) = router.remove_liquidity(
                 &usdc_addr,
                 &xlm_addr,
                 &lp_to_break,
-                &0,
-                &0,
+                &usdc_min,
+                &xlm_min,
                 &env.current_contract_address(),
                 &deadline,
             );
@@ -464,7 +498,9 @@ impl SmasageYieldRouter {
             let xlm = TokenClient::new(&env, &xlm_addr);
             xlm.approve(&env.current_contract_address(), &router_addr, &amount_xlm, &(env.ledger().sequence() + 100));
             
-            let swap_amounts = router.swap_exact_tokens_for_tokens(&amount_xlm, &0, &path, &env.current_contract_address(), &deadline);
+            // Calculate slippage: 1% (99% of expected output)
+            let xlm_to_usdc_slippage = amount_xlm * 99 / 100;
+            let swap_amounts = router.swap_exact_tokens_for_tokens(&amount_xlm, &xlm_to_usdc_slippage, &path, &env.current_contract_address(), &deadline);
             let usdc_received = swap_amounts.get(1).unwrap();
             
             let total_usdc_recovered = amount_usdc.checked_add(usdc_received).ok_or(Error::Overflow)?;
