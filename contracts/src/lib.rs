@@ -843,6 +843,7 @@ mod test {
                 env.storage().persistent().get(&MockDataKey::IndexRate).unwrap_or(INDEX_RATE_PRECISION)
             }
 
+            /// Test-only: simulate pool index rate accrual (not part of production Blend API).
             pub fn set_index_rate(env: Env, new_rate: i128) {
                 env.storage().persistent().set(&MockDataKey::IndexRate, &new_rate);
             }
