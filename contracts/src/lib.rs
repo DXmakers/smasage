@@ -47,8 +47,7 @@ pub trait BlendPoolInterface {
     /// Withdraw assets from the Blend pool by redeeming bTokens
     fn withdraw(env: Env, to: Address, b_tokens: i128) -> i128;
     
-    /// Get the current index rate for yield calculation
-    /// The index rate represents the exchange rate between underlying assets and bTokens
+    /// Current index rate: underlying-per-bToken exchange scale (see INDEX_RATE_PRECISION).
     fn get_index_rate(env: Env) -> i128;
     
     /// Get the total bToken supply for the pool
