@@ -10,10 +10,10 @@ import { type UserGoal } from './notification-service.js';
 import { generateProactiveMessage } from './agent-service.js';
 
 const PORT = parseInt(process.env.NOTIFICATION_PORT || '3001', 10);
-const API_KEY = process.env.ANTHROPIC_API_KEY;
+const API_KEY = process.env.GEMINI_API_KEY;
 
 if (!API_KEY) {
-  console.error('ERROR: ANTHROPIC_API_KEY is not set in .env file');
+  console.error('ERROR: GEMINI_API_KEY is not set in .env file');
   process.exit(1);
 }
 

@@ -56,33 +56,34 @@ Generate a notification message that:
 Keep it short, conversational, and actionable.`;
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 256,
-        system: AGENT_PROMPT,
-        messages: [
+        systemInstruction: {
+          parts: [{ text: AGENT_PROMPT }]
+        },
+        contents: [
           {
             role: 'user',
-            content: userPrompt,
-          },
+            parts: [{ text: userPrompt }]
+          }
         ],
+        generationConfig: {
+          maxOutputTokens: 256
+        }
       }),
     });
 
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`Claude API error: ${response.status} — ${error}`);
+      throw new Error(`Gemini API error: ${response.status} — ${error}`);
     }
 
     const data = await response.json();
-    return data.content[0].text;
+    return data.candidates[0].content.parts[0].text;
   } catch (error) {
     console.error('Error generating proactive message:', error);
     // Fallback to template if API fails

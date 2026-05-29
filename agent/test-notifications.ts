@@ -54,9 +54,9 @@ async function testProactiveNotification() {
   if (projection.status === 'Falling Behind') {
     console.log('🤖 Generating OpenClaw Message...\n');
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      console.log('⚠️  ANTHROPIC_API_KEY not set. Using fallback message.\n');
+      console.log('⚠️  GEMINI_API_KEY not set. Using fallback message.\n');
     }
 
     try {

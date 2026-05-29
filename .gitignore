@@ -14,10 +14,11 @@ test_snapshots/
 
 # Environment
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
 
 # OS
 .DS_Store
@@ -28,8 +29,8 @@ Thumbs.db
 *.wasm
 .soroban
 issues.md
-.env
 
 # Local superpowers specs/plans (not for upstream)
 docs/superpowers/
 .claude/
+ADDITIONAL_AUDIT_REPORT.md

@@ -3,41 +3,43 @@ import readline from "readline";
 const SYSTEM_PROMPT = `You are Smasage, an intelligent financial assistant.
 You help users read balances and project financial goals on the Stellar network.`;
 
-const API_KEY = process.env.ANTHROPIC_API_KEY;
+const API_KEY = process.env.GEMINI_API_KEY;
 
 if (!API_KEY) {
-  console.error("ERROR: ANTHROPIC_API_KEY is not set in your .env file.");
+  console.error("ERROR: GEMINI_API_KEY is not set in your .env file.");
   process.exit(1);
 }
 
 async function chat(userMessage, history = []) {
-  const messages = [
-    ...history,
-    { role: "user", content: userMessage }
-  ];
+  const contents = history.map(h => ({
+    role: h.role === "assistant" ? "model" : "user",
+    parts: [{ text: h.content }]
+  }));
+  contents.push({ role: "user", parts: [{ text: userMessage }] });
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
     method: "POST",
     headers: {
-      "x-api-key": API_KEY,
-      "anthropic-version": "2023-06-01",
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      model: "claude-opus-4-6",
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages,
+      systemInstruction: {
+        parts: [{ text: SYSTEM_PROMPT }]
+      },
+      contents,
+      generationConfig: {
+        maxOutputTokens: 1024
+      }
     }),
   });
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Anthropic API error: ${res.status} — ${err}`);
+    throw new Error(`Gemini API error: ${res.status} — ${err}`);
   }
 
-  const dat= await res.json();
-  return data.content[0].text;
+  const data = await res.json();
+  return data.candidates[0].content.parts[0].text;
 }
 
 async function main() {
