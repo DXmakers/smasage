@@ -741,6 +741,7 @@ mod test {
 
     // ============================================
     // Blend Protocol Integration Tests
+    // Index rate changes are applied on the mock Blend pool contract only.
     // ============================================
 
     /// Mock USDC Token contract for testing
@@ -963,7 +964,7 @@ mod test {
 
         // Simulate yield accrual by increasing index rate to 1.05 (5% yield)
         let new_index_rate = INDEX_RATE_PRECISION + (INDEX_RATE_PRECISION * 5 / 100); // 1.05
-        client.set_mock_index_rate(&new_index_rate);
+        blend_pool_client.set_index_rate(&new_index_rate);
 
         // Calculate yield after index rate increase
         // Yield = bTokens * (current_index - last_index) / precision
@@ -1101,7 +1102,7 @@ mod test {
 
         // Increase index rate to 1.10 (10% yield)
         let new_index_rate = INDEX_RATE_PRECISION + (INDEX_RATE_PRECISION * 10 / 100); // 1.10
-        client.set_mock_index_rate(&new_index_rate);
+        blend_pool_client.set_index_rate(&new_index_rate);
 
         // Withdraw all bTokens
         let usdc_received = client.withdraw_from_blend(&user, &0);
@@ -1145,7 +1146,7 @@ mod test {
 
         // Increase index rate to 1.05
         let new_index_rate = INDEX_RATE_PRECISION + (INDEX_RATE_PRECISION * 5 / 100);
-        client.set_mock_index_rate(&new_index_rate);
+        blend_pool_client.set_index_rate(&new_index_rate);
 
         // Calculate yield BEFORE second supply (to capture yield from first supply)
         // First supply yield: 500 * (1,050,000 - 1,000,000) / 1,000,000 = 25
@@ -1204,14 +1205,14 @@ mod test {
 
         // Simulate 1 year of yield at 5% APR
         let new_index_rate = INDEX_RATE_PRECISION + (INDEX_RATE_PRECISION * 5 / 100);
-        client.set_mock_index_rate(&new_index_rate);
+        blend_pool_client.set_index_rate(&new_index_rate);
 
         // Value should now be 2100
         assert_eq!(client.get_blend_position_value(&user), 2100);
 
         // Simulate another 5% yield (compound)
         let new_index_rate_2 = new_index_rate + (new_index_rate * 5 / 100);
-        client.set_mock_index_rate(&new_index_rate_2);
+        blend_pool_client.set_index_rate(&new_index_rate_2);
 
         // Value should now be approximately 2205
         let value = client.get_blend_position_value(&user);
