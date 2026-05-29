@@ -1446,4 +1446,129 @@ mod test {
         let result = client.try_withdraw_from_blend(&user, &0);
         assert_eq!(result, Err(Ok(ContractError::NoPosition)));
     }
+
+    // ============================================
+    // Admin Authorization Tests
+    // ============================================
+
+    #[test]
+    fn test_unauthorized_init_gold_trustline() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, SmasageYieldRouter);
+        let client = SmasageYieldRouterClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let unauthorized_user = Address::generate(&env);
+
+        env.mock_all_auths();
+
+        // Initialize contract with admin
+        client.initialize(&admin);
+
+        // Try to init gold trustline with unauthorized user
+        // Mock auth only for the unauthorized user
+        env.mock_auths(&[
+            (&unauthorized_user, &contract_id, 0),
+        ]);
+
+        let result = client.try_init_gold_trustline(&unauthorized_user, &10_000_000);
+        assert_eq!(result, Err(Ok(ContractError::Unauthorized)));
+    }
+
+    #[test]
+    fn test_unauthorized_initialize_soroswap() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, SmasageYieldRouter);
+        let client = SmasageYieldRouterClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let unauthorized_user = Address::generate(&env);
+        let router = Address::generate(&env);
+        let usdc = Address::generate(&env);
+        let xlm = Address::generate(&env);
+
+        env.mock_all_auths();
+
+        // Initialize contract with admin
+        client.initialize(&admin);
+
+        // Try to initialize soroswap with unauthorized user
+        env.mock_auths(&[
+            (&unauthorized_user, &contract_id, 0),
+        ]);
+
+        let result = client.try_initialize_soroswap(&unauthorized_user, &router, &usdc, &xlm);
+        assert_eq!(result, Err(Ok(ContractError::Unauthorized)));
+    }
+
+    #[test]
+    fn test_initialize_already_initialized() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, SmasageYieldRouter);
+        let client = SmasageYieldRouterClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let another_admin = Address::generate(&env);
+
+        env.mock_all_auths();
+
+        // Initialize contract with admin
+        client.initialize(&admin);
+
+        // Try to initialize again with different admin
+        env.mock_auths(&[
+            (&another_admin, &contract_id, 0),
+        ]);
+
+        let result = client.try_initialize(&another_admin);
+        assert_eq!(result, Err(Ok(ContractError::AlreadyInitialized)));
+    }
+
+    #[test]
+    fn test_admin_can_init_gold_trustline() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, SmasageYieldRouter);
+        let client = SmasageYieldRouterClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+
+        env.mock_all_auths();
+
+        // Initialize contract with admin
+        client.initialize(&admin);
+
+        // Admin should be able to init gold trustline
+        env.mock_auths(&[
+            (&admin, &contract_id, 0),
+        ]);
+
+        let result = client.try_init_gold_trustline(&admin, &10_000_000);
+        assert_eq!(result, Ok(()));
+        assert!(client.is_gold_trustline_ready());
+    }
+
+    #[test]
+    fn test_admin_can_initialize_soroswap() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, SmasageYieldRouter);
+        let client = SmasageYieldRouterClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let router = Address::generate(&env);
+        let usdc = Address::generate(&env);
+        let xlm = Address::generate(&env);
+
+        env.mock_all_auths();
+
+        // Initialize contract with admin
+        client.initialize(&admin);
+
+        // Admin should be able to initialize soroswap
+        env.mock_auths(&[
+            (&admin, &contract_id, 0),
+        ]);
+
+        let result = client.try_initialize_soroswap(&admin, &router, &usdc, &xlm);
+        assert_eq!(result, Ok(()));
+    }
 }
