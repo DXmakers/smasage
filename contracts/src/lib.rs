@@ -373,17 +373,10 @@ impl SmasageYieldRouter {
         blend_client.supply(from, &amount)
     }
 
-    /// Internal function to call Blend pool withdraw
-    fn call_blend_withdraw(env: &Env, blend_pool: &Address, _to: &Address, b_tokens: i128) -> i128 {
-        // In production, this would invoke the actual Blend contract
-        // For testing, this will be mocked
-        // Returns the amount of underlying assets received
-        
-        let index_rate = Self::call_blend_index_rate(env, blend_pool);
-        
-        // Calculate underlying: bTokens * index_rate / INDEX_RATE_PRECISION
-        // As index rate increases, each bToken is worth more underlying
-        b_tokens * index_rate / INDEX_RATE_PRECISION
+    /// Redeem bTokens from the Blend pool and return underlying assets received.
+    fn call_blend_withdraw(env: &Env, blend_pool: &Address, to: &Address, b_tokens: i128) -> i128 {
+        let blend_client = BlendPoolClient::new(env, blend_pool);
+        blend_client.withdraw(to, &b_tokens)
     }
 
     /// Query the Blend pool for the current index rate used in yield math.
