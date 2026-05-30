@@ -44,6 +44,15 @@ interface GoalPayloadInput {
   monthlyContribution?: unknown;
 }
 
+/** Parsed and validated goal payload with proper types. */
+interface ValidatedGoalData {
+  currentBalance: number;
+  targetAmount: number;
+  targetDate: string;
+  expectedAPY: number;
+  monthlyContribution: number;
+}
+
 export class NotificationServer {
   private wss: WebSocketServer;
   private clients: Map<string, ActiveClient> = new Map();
@@ -201,6 +210,23 @@ export class NotificationServer {
   }
 
   /**
+   * Parse a validated goal payload into a typed object without `as` casts.
+   * Caller must ensure `validateGoalPayload` passed first.
+   */
+  private parseValidatedGoal(
+    data: GoalPayloadInput,
+    fallback: Partial<ValidatedGoalData>
+  ): ValidatedGoalData {
+    return {
+      currentBalance: typeof data.currentBalance === 'number' ? data.currentBalance : fallback.currentBalance!,
+      targetAmount: typeof data.targetAmount === 'number' ? data.targetAmount : fallback.targetAmount!,
+      targetDate: typeof data.targetDate === 'string' && data.targetDate.trim() !== '' ? data.targetDate : fallback.targetDate!,
+      expectedAPY: typeof data.expectedAPY === 'number' ? data.expectedAPY : fallback.expectedAPY!,
+      monthlyContribution: typeof data.monthlyContribution === 'number' ? data.monthlyContribution : fallback.monthlyContribution!,
+    };
+  }
+
+  /**
    * Register a user's goal for monitoring
    */
   private registerUserGoal(userId: string, goalData: GoalPayloadInput): void {
@@ -213,13 +239,21 @@ export class NotificationServer {
       return;
     }
 
+    const parsed = this.parseValidatedGoal(goalData, {
+      currentBalance: 0,
+      targetAmount: 0,
+      targetDate: '',
+      expectedAPY: 8.5,
+      monthlyContribution: 0,
+    });
+
     const goal: UserGoal = {
       userId,
-      currentBalance: goalData.currentBalance as number,
-      targetAmount: goalData.targetAmount as number,
-      targetDate: new Date(goalData.targetDate as string),
-      expectedAPY: (goalData.expectedAPY as number) ?? 8.5,
-      monthlyContribution: (goalData.monthlyContribution as number) ?? 0,
+      currentBalance: parsed.currentBalance,
+      targetAmount: parsed.targetAmount,
+      targetDate: new Date(parsed.targetDate),
+      expectedAPY: parsed.expectedAPY,
+      monthlyContribution: parsed.monthlyContribution,
       hasNotified: false,
     };
 
@@ -255,15 +289,21 @@ export class NotificationServer {
       return;
     }
 
+    const parsed = this.parseValidatedGoal(goalData, {
+      currentBalance: existingGoal.currentBalance,
+      targetAmount: existingGoal.targetAmount,
+      targetDate: existingGoal.targetDate.toISOString(),
+      expectedAPY: existingGoal.expectedAPY,
+      monthlyContribution: existingGoal.monthlyContribution,
+    });
+
     const updatedGoal: UserGoal = {
       ...existingGoal,
-      currentBalance: (goalData.currentBalance as number) ?? existingGoal.currentBalance,
-      targetAmount: (goalData.targetAmount as number) ?? existingGoal.targetAmount,
-      targetDate: goalData.targetDate
-        ? new Date(goalData.targetDate as string)
-        : existingGoal.targetDate,
-      expectedAPY: (goalData.expectedAPY as number) ?? existingGoal.expectedAPY,
-      monthlyContribution: (goalData.monthlyContribution as number) ?? existingGoal.monthlyContribution,
+      currentBalance: parsed.currentBalance,
+      targetAmount: parsed.targetAmount,
+      targetDate: new Date(parsed.targetDate),
+      expectedAPY: parsed.expectedAPY,
+      monthlyContribution: parsed.monthlyContribution,
       hasNotified: false,
     };
 
