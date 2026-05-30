@@ -13,6 +13,15 @@ interface ActiveClient {
   connectedAt: Date;
 }
 
+/** Raw goal payload received over WebSocket (before validation). */
+interface GoalPayloadInput {
+  currentBalance?: unknown;
+  targetAmount?: unknown;
+  targetDate?: unknown;
+  expectedAPY?: unknown;
+  monthlyContribution?: unknown;
+}
+
 export class NotificationServer {
   private wss: WebSocketServer;
   private clients: Map<string, ActiveClient> = new Map();
@@ -83,16 +92,78 @@ export class NotificationServer {
   }
 
   /**
+   * Validate a raw goal payload and return error messages.
+   * Accepts unknown types from JSON.parse and validates them safely.
+   */
+  private validateGoalPayload(
+    data: GoalPayloadInput,
+    requireAll: boolean
+  ): string[] {
+    const errors: string[] = [];
+
+    if (requireAll || data.currentBalance !== undefined) {
+      const val = data.currentBalance;
+      if (typeof val !== 'number' || !Number.isFinite(val) || val < 0) {
+        errors.push('currentBalance must be a non-negative finite number');
+      }
+    }
+
+    if (requireAll || data.targetAmount !== undefined) {
+      const val = data.targetAmount;
+      if (typeof val !== 'number' || !Number.isFinite(val) || val <= 0) {
+        errors.push('targetAmount must be a positive finite number');
+      }
+    }
+
+    if (requireAll || data.targetDate !== undefined) {
+      const val = data.targetDate;
+      if (typeof val !== 'string' || val.trim() === '') {
+        errors.push('targetDate must be a non-empty date string');
+      } else {
+        const date = new Date(val);
+        if (isNaN(date.getTime())) {
+          errors.push('targetDate must be a valid date string');
+        }
+      }
+    }
+
+    if (requireAll || data.expectedAPY !== undefined) {
+      const val = data.expectedAPY;
+      if (typeof val !== 'number' || !Number.isFinite(val) || val < 0 || val > 100) {
+        errors.push('expectedAPY must be a finite number between 0 and 100');
+      }
+    }
+
+    if (requireAll || data.monthlyContribution !== undefined) {
+      const val = data.monthlyContribution;
+      if (typeof val !== 'number' || !Number.isFinite(val) || val < 0) {
+        errors.push('monthlyContribution must be a non-negative finite number');
+      }
+    }
+
+    return errors;
+  }
+
+  /**
    * Register a user's goal for monitoring
    */
-  private registerUserGoal(userId: string, goalData: Partial<UserGoal>): void {
+  private registerUserGoal(userId: string, goalData: GoalPayloadInput): void {
+    const errors = this.validateGoalPayload(goalData, true);
+    if (errors.length > 0) {
+      this.sendMessage(userId, {
+        type: 'error',
+        payload: { message: `Invalid goal payload: ${errors.join('; ')}` },
+      });
+      return;
+    }
+
     const goal: UserGoal = {
       userId,
-      currentBalance: goalData.currentBalance || 0,
-      targetAmount: goalData.targetAmount || 0,
-      targetDate: new Date(goalData.targetDate || ''),
-      expectedAPY: goalData.expectedAPY || 8.5,
-      monthlyContribution: goalData.monthlyContribution || 0,
+      currentBalance: goalData.currentBalance as number,
+      targetAmount: goalData.targetAmount as number,
+      targetDate: new Date(goalData.targetDate as string),
+      expectedAPY: (goalData.expectedAPY as number) ?? 8.5,
+      monthlyContribution: (goalData.monthlyContribution as number) ?? 0,
       hasNotified: false,
     };
 
@@ -108,20 +179,36 @@ export class NotificationServer {
   /**
    * Update an existing user goal
    */
-  private updateUserGoal(userId: string, goalData: Partial<UserGoal>): void {
+  private updateUserGoal(userId: string, goalData: GoalPayloadInput): void {
     const existingGoal = this.userGoals.get(userId);
     if (!existingGoal) {
       console.warn(`[Service] No existing goal for user: ${userId}`);
+      this.sendMessage(userId, {
+        type: 'error',
+        payload: { message: 'No existing goal found for update' },
+      });
       return;
     }
 
-    const updatedGoal = {
+    const errors = this.validateGoalPayload(goalData, false);
+    if (errors.length > 0) {
+      this.sendMessage(userId, {
+        type: 'error',
+        payload: { message: `Invalid goal payload: ${errors.join('; ')}` },
+      });
+      return;
+    }
+
+    const updatedGoal: UserGoal = {
       ...existingGoal,
-      ...goalData,
-      userId, // Ensure userId doesn't change
+      currentBalance: (goalData.currentBalance as number) ?? existingGoal.currentBalance,
+      targetAmount: (goalData.targetAmount as number) ?? existingGoal.targetAmount,
       targetDate: goalData.targetDate
-        ? new Date(goalData.targetDate)
+        ? new Date(goalData.targetDate as string)
         : existingGoal.targetDate,
+      expectedAPY: (goalData.expectedAPY as number) ?? existingGoal.expectedAPY,
+      monthlyContribution: (goalData.monthlyContribution as number) ?? existingGoal.monthlyContribution,
+      hasNotified: false,
     };
 
     this.userGoals.set(userId, updatedGoal);

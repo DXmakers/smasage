@@ -22,6 +22,45 @@ First off, thank you for considering contributing to Smasage! It's people like y
 4. Make sure your code lints.
 5. Issue a pull request!
 
+#### Pre-PR Verification Checklist
+
+Before submitting a pull request, verify the following:
+
+- [ ] **Code Quality**
+  - [ ] Code follows the project's style guidelines (see Style Guidelines below)
+  - [ ] No console.log, debug statements, or commented-out code remains
+  - [ ] Variable and function names are clear and descriptive
+
+- [ ] **Testing**
+  - [ ] New code includes tests where applicable
+  - [ ] All tests pass locally: `npm test` (frontend/agent) or `cargo test` (contracts)
+  - [ ] Tests cover the happy path and edge cases
+
+- [ ] **Build & Format**
+  - [ ] Frontend code passes linting: `npm run lint` (if configured)
+  - [ ] Rust code is formatted: `cargo fmt` and passes `cargo clippy`
+  - [ ] No build warnings or errors locally
+
+- [ ] **Dependencies**
+  - [ ] No unnecessary dependencies added
+  - [ ] lock files (package-lock.json, Cargo.lock) are committed
+  - [ ] Dependencies resolve without conflicts
+
+- [ ] **Environment & Security**
+  - [ ] No secrets (API keys, tokens) are hardcoded in code
+  - [ ] `.env` files are not committed; use `.env.example` for templates
+  - [ ] All environment variables used are documented in `.env.example`
+
+- [ ] **Documentation**
+  - [ ] README.md is updated if behavior or setup changes
+  - [ ] Code comments explain the "why" for non-obvious logic
+  - [ ] Commit messages follow the imperative mood ("Add feature", not "Added feature")
+
+- [ ] **Git Hygiene**
+  - [ ] Branch is up to date with `main`
+  - [ ] Commit history is clean (no accidental merge commits)
+  - [ ] PR description clearly explains what changed and why
+
 ## Development Setup
 
 ### Project Structure
@@ -29,6 +68,16 @@ First off, thank you for considering contributing to Smasage! It's people like y
 - `/frontend`: Next.js application (TypeScript + Vanilla CSS).
 - `/agent`: Node.js backend using OpenClaw.
 - `/contracts`: Soroban smart contracts in Rust.
+
+### Environment Variables
+
+All environment variables are documented in [README.md](./README.md#environment-variables). Ensure you have a properly configured `.env` file before running any component locally.
+
+Key points:
+- Never commit `.env` files containing secrets to the repository.
+- `.env` files are gitignored recursively across the project (`**/.env` and `**/.env.*` patterns).
+- Use `.env.example` files as templates for required variables.
+- Each component (frontend, agent) can have local `.env.local` overrides for development.
 
 ### Branching Policy
 

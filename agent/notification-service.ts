@@ -35,6 +35,11 @@ export interface ProactiveNotification {
  * Check if a user's goal status warrants a proactive notification
  */
 export function checkGoalStatus(goal: UserGoal): ProactiveNotification | null {
+  // Issue #142: Don't re-notify if already nudged for this status
+  if (goal.hasNotified) {
+    return null;
+  }
+
   const projection = projectGoalStatus(
     goal.currentBalance,
     goal.targetAmount,
@@ -50,6 +55,8 @@ export function checkGoalStatus(goal: UserGoal): ProactiveNotification | null {
       projection,
       goal
     );
+    // Mark as notified to prevent repeated nudges every 5-minute cycle
+    goal.hasNotified = true;
     return notification;
   }
 

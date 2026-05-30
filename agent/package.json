@@ -14,7 +14,7 @@
   "dependencies": {
     "openclaw": "^2026.3.13",
     "dotenv": "^16.4.5",
-    "ws": "^8.14.2"
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@stellar/stellar-sdk": "^11.2.0",
@@ -22,5 +22,10 @@
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0",
     "ts-node": "^10.9.0"
+  },
+  "overrides": {
+    "protobufjs": "^7.5.4",
+    "axios": "^1.13.6",
+    "hono": "^4.12.7"
   }
 }
