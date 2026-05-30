@@ -4,14 +4,35 @@
  */
 
 import { WebSocketServer, WebSocket } from 'ws';
-import { Server } from 'http';
+import { Server, IncomingMessage } from 'http';
 import { ProactiveNotification, monitorUserGoals, UserGoal } from './notification-service.js';
 import { DEFAULT_MAX_WS_MESSAGE_BYTES, wsMessageSizeError } from './websocket-limits.js';
+import { projectGoalStatus, type GoalProjection } from './goal-projection.js';
 
 interface ActiveClient {
   ws: WebSocket;
   userId: string;
   connectedAt: Date;
+}
+
+/**
+ * Options for constructing a NotificationServer.
+ * All fields are optional — omitting them applies safe defaults.
+ */
+export interface NotificationServerOptions {
+  maxMessageBytes?: number;
+  /**
+   * HTTP Origins allowed to open a WebSocket connection.
+   * An empty array (the default) accepts all origins — use only in dev/test.
+   * Non-browser clients that send no Origin header are always accepted.
+   */
+  allowedOrigins?: string[];
+  /**
+   * Optional async callback invoked when a monitored goal status is
+   * "Falling Behind". When provided, replaces the built-in template
+   * notification with an AI-generated message for that goal.
+   */
+  aiTrigger?: (goal: UserGoal, projection: GoalProjection) => Promise<void>;
 }
 
 /** Raw goal payload received over WebSocket (before validation). */
@@ -29,10 +50,26 @@ export class NotificationServer {
   private userGoals: Map<string, UserGoal> = new Map();
   private monitoringInterval: NodeJS.Timeout | null = null;
   private readonly maxMessageBytes: number;
+  private readonly allowedOrigins: string[];
+  private readonly aiTrigger: ((goal: UserGoal, projection: GoalProjection) => Promise<void>) | undefined;
 
-  constructor(httpServer: Server, maxMessageBytes: number = DEFAULT_MAX_WS_MESSAGE_BYTES) {
+  constructor(httpServer: Server, options: NotificationServerOptions = {}) {
+    const {
+      maxMessageBytes = DEFAULT_MAX_WS_MESSAGE_BYTES,
+      allowedOrigins = [],
+      aiTrigger,
+    } = options;
     this.maxMessageBytes = maxMessageBytes;
-    this.wss = new WebSocketServer({ server: httpServer });
+    this.allowedOrigins = allowedOrigins;
+    this.aiTrigger = aiTrigger;
+    this.wss = new WebSocketServer({
+      server: httpServer,
+      verifyClient: (info: { origin: string; secure: boolean; req: IncomingMessage }) => {
+        // info.origin is empty string '' for non-browser clients in ws@8
+        const origin = info.origin === '' ? undefined : info.origin;
+        return isOriginAllowed(origin, this.allowedOrigins);
+      },
+    });
     this.setupConnectionHandlers();
   }
 
@@ -41,13 +78,19 @@ export class NotificationServer {
    */
   private setupConnectionHandlers(): void {
     this.wss.on('connection', (ws: WebSocket, req) => {
-      const userId = extractUserIdFromUrl(req.url || '');
+      const rawUserId = extractUserIdFromUrl(req.url || '');
 
-      if (!userId) {
-        ws.close(4000, 'Missing userId');
+      if (!rawUserId || !validateUserId(rawUserId)) {
+        ws.close(4000, 'Missing or invalid userId');
         return;
       }
 
+      if (this.clients.has(rawUserId)) {
+        ws.close(4001, 'User already connected');
+        return;
+      }
+
+      const userId = rawUserId;
       const client: ActiveClient = {
         ws,
         userId,
@@ -229,18 +272,40 @@ export class NotificationServer {
   }
 
   /**
-   * Start periodic monitoring of all user goals
+   * Start periodic monitoring of all user goals.
+   * When an aiTrigger is configured, falling-behind goals receive an AI-generated
+   * message. Otherwise the built-in template notification is used as a fallback.
    */
   private startMonitoring(): void {
-    // Check every 5 minutes
     this.monitoringInterval = setInterval(() => {
       const goals = Array.from(this.userGoals.values());
       if (goals.length === 0) return;
 
-      const notifications = monitorUserGoals(goals);
-
-      for (const notification of notifications) {
-        this.sendNotification(notification);
+      if (this.aiTrigger !== undefined) {
+        // AI path — check each goal individually and fire the async trigger
+        for (const goal of goals) {
+          if (goal.hasNotified) continue;
+          const projection = projectGoalStatus(
+            goal.currentBalance,
+            goal.targetAmount,
+            goal.targetDate,
+            goal.expectedAPY,
+            goal.monthlyContribution,
+          );
+          if (projection.status === 'Falling Behind') {
+            // Set flag before the async call to prevent re-entry on next tick
+            goal.hasNotified = true;
+            void this.aiTrigger(goal, projection).catch((err) => {
+              console.error('[Service] aiTrigger failed for user', goal.userId, err);
+            });
+          }
+        }
+      } else {
+        // Template fallback path
+        const notifications = monitorUserGoals(goals);
+        for (const notification of notifications) {
+          this.sendNotification(notification);
+        }
       }
     }, 5 * 60 * 1000); // 5 minutes
 
@@ -262,9 +327,10 @@ export class NotificationServer {
   }
 
   /**
-   * Send message to specific client
+   * Send message to a specific connected client.
+   * Logs a warning when the client is not connected or the socket is not open.
    */
-  private sendMessage(
+  public sendMessage(
     userId: string,
     message: Record<string, unknown>
   ): void {
@@ -358,4 +424,31 @@ function extractUserIdFromUrl(url: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Validate a userId extracted from the WebSocket URL.
+ * Rejects empty / whitespace-only strings, strings longer than 128 characters,
+ * and strings containing ASCII control characters (codepoints < 0x20 or 0x7F).
+ */
+export function validateUserId(userId: string): boolean {
+  if (userId.trim() === '' || userId.length > 128) return false;
+  for (let i = 0; i < userId.length; i++) {
+    const cp = userId.charCodeAt(i);
+    if (cp < 0x20 || cp === 0x7f) return false;
+  }
+  return true;
+}
+
+/**
+ * Return true when the request origin is acceptable.
+ *
+ * - `allowedOrigins` empty → accept all (dev mode / allow-all).
+ * - `origin` undefined → accept (non-browser client; no CSRF risk).
+ * - Otherwise → exact case-sensitive match required.
+ */
+export function isOriginAllowed(origin: string | undefined, allowedOrigins: string[]): boolean {
+  if (allowedOrigins.length === 0) return true;
+  if (origin === undefined) return true;
+  return allowedOrigins.includes(origin);
 }
