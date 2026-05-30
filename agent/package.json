@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node --env-file=.env index.js",
     "notifications": "node --loader ts-node/esm notification-monitor.ts",
-    "test": "node --loader ts-node/esm goal-projection.ts",
+    "test": "jest --config jest.config.cjs",
+    "test:smoke": "node --loader ts-node/esm test-notifications.ts",
     "build": "tsc",
     "read-balances": "node --loader ts-node/esm balance-reader.ts"
   },
@@ -18,8 +19,11 @@
   },
   "devDependencies": {
     "@stellar/stellar-sdk": "^11.2.0",
+    "@types/jest": "^30.0.0",
     "@types/ws": "^8.5.8",
     "@types/node": "^20.0.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.6",
     "typescript": "^5.0.0",
     "ts-node": "^10.9.0"
   },
