@@ -6,6 +6,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
 import { ProactiveNotification, monitorUserGoals, UserGoal } from './notification-service.js';
+import { DEFAULT_MAX_WS_MESSAGE_BYTES, wsMessageSizeError } from './websocket-limits.js';
 
 interface ActiveClient {
   ws: WebSocket;
@@ -27,8 +28,10 @@ export class NotificationServer {
   private clients: Map<string, ActiveClient> = new Map();
   private userGoals: Map<string, UserGoal> = new Map();
   private monitoringInterval: NodeJS.Timeout | null = null;
+  private readonly maxMessageBytes: number;
 
-  constructor(httpServer: Server) {
+  constructor(httpServer: Server, maxMessageBytes: number = DEFAULT_MAX_WS_MESSAGE_BYTES) {
+    this.maxMessageBytes = maxMessageBytes;
     this.wss = new WebSocketServer({ server: httpServer });
     this.setupConnectionHandlers();
   }
@@ -70,6 +73,16 @@ export class NotificationServer {
    * Handle incoming WebSocket messages
    */
   private handleMessage(userId: string, data: Buffer): void {
+    const sizeError = wsMessageSizeError(data.byteLength, this.maxMessageBytes);
+    if (sizeError !== null) {
+      console.warn(`[WS] Rejected oversized message from ${userId}: ${sizeError}`);
+      this.sendMessage(userId, {
+        type: 'error',
+        payload: { message: sizeError },
+      });
+      return;
+    }
+
     try {
       const message = JSON.parse(data.toString());
 

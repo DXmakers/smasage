@@ -1,7 +1,9 @@
 /**
  * OpenClaw Agent Service - Proactive Message Generation
- * Uses Claude LLM to generate contextual, empathetic messages and solutions
+ * Uses Gemini to generate contextual, empathetic messages and solutions.
  */
+
+import { extractGeminiGeneratedText } from './gemini-response.js';
 
 export interface GoalContext {
   userId: string;
@@ -82,8 +84,8 @@ Keep it short, conversational, and actionable.`;
       throw new Error(`Gemini API error: ${response.status} — ${error}`);
     }
 
-    const data = await response.json();
-    return data.candidates[0].content.parts[0].text;
+    const data: unknown = await response.json();
+    return extractGeminiGeneratedText(data);
   } catch (error) {
     console.error('Error generating proactive message:', error);
     // Fallback to template if API fails

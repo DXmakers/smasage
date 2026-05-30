@@ -30,6 +30,18 @@ const MIN_PORT = 1;
 const MAX_PORT = 65535;
 
 /**
+ * Parse `GEMINI_API_KEY` from a raw env value.
+ * Returns a definite non-empty string after trim, or `undefined` when missing.
+ */
+export function parseGeminiApiKey(raw: string | undefined): string | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+  const trimmed = raw.trim();
+  return trimmed === '' ? undefined : trimmed;
+}
+
+/**
  * Pure validator: takes a raw map of env vars and returns either the typed
  * `AgentEnv` or a list of human-readable error messages. Does not throw and
  * does not touch `process.env` itself.
@@ -37,13 +49,10 @@ const MAX_PORT = 65535;
 export function validateEnv(raw: Record<string, string | undefined>): ValidateEnvResult {
   const errors: string[] = [];
 
-  // GEMINI_API_KEY — required, non-empty string
-  const apiKeyRaw = raw.GEMINI_API_KEY;
-  let apiKey: string | undefined;
-  if (apiKeyRaw === undefined || apiKeyRaw.trim() === '') {
+  // GEMINI_API_KEY — required, non-empty string (trimmed)
+  const apiKey = parseGeminiApiKey(raw.GEMINI_API_KEY);
+  if (apiKey === undefined) {
     errors.push('GEMINI_API_KEY is required');
-  } else {
-    apiKey = apiKeyRaw;
   }
 
   // NOTIFICATION_PORT — optional integer in [1, 65535], defaults to 3001
@@ -65,6 +74,7 @@ export function validateEnv(raw: Record<string, string | undefined>): ValidateEn
   if (errors.length > 0 || apiKey === undefined) {
     return { ok: false, errors };
   }
+
   return { ok: true, env: { GEMINI_API_KEY: apiKey, NOTIFICATION_PORT: port } };
 }
 

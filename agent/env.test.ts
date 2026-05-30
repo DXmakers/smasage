@@ -1,8 +1,27 @@
-import { validateEnv, loadAgentEnv } from './env';
+import { validateEnv, loadAgentEnv, parseGeminiApiKey } from './env';
+
+describe('parseGeminiApiKey', () => {
+  it('returns a trimmed definite string', () => {
+    expect(parseGeminiApiKey('  secret-key  ')).toBe('secret-key');
+  });
+
+  it('returns undefined for missing or blank values', () => {
+    expect(parseGeminiApiKey(undefined)).toBeUndefined();
+    expect(parseGeminiApiKey('')).toBeUndefined();
+    expect(parseGeminiApiKey('   ')).toBeUndefined();
+  });
+});
 
 describe('validateEnv', () => {
   it('accepts the minimal required env and applies defaults', () => {
     expect(validateEnv({ GEMINI_API_KEY: 'secret' })).toEqual({
+      ok: true,
+      env: { GEMINI_API_KEY: 'secret', NOTIFICATION_PORT: 3001 },
+    });
+  });
+
+  it('trims whitespace from GEMINI_API_KEY', () => {
+    expect(validateEnv({ GEMINI_API_KEY: '  secret  ' })).toEqual({
       ok: true,
       env: { GEMINI_API_KEY: 'secret', NOTIFICATION_PORT: 3001 },
     });
