@@ -53,11 +53,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install
+          cache: "npm"
+          cache-dependency-path: "./agent/package-lock.json"
+      - run: npm ci
       # #176 — gate on high-severity vulnerabilities in agent dependencies
       - name: Audit agent dependencies (high gate)
         run: npm audit --audit-level=high
-      - run: npm test --ignore-scripts || echo "Agent tests completed"
+      - run: npm test --ignore-scripts
 
   build-contracts:
     runs-on: ubuntu-latest
