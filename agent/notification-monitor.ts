@@ -25,7 +25,10 @@ const log = createLogger('notification-monitor');
 
 // Create HTTP server for WebSocket
 const httpServer = createServer();
-const notificationServer = new NotificationServer(httpServer);
+const notificationServer = new NotificationServer(httpServer, {
+  allowedOrigins: env.ALLOWED_ORIGINS,
+  aiTrigger: (goal, projection) => triggerProactiveMessage(goal, projection),
+});
 
 /**
  * Trigger a proactive message if goal status warrants it
@@ -57,29 +60,24 @@ async function triggerProactiveMessage(
     env.GEMINI_API_KEY
   );
 
-  // Send notification through WebSocket
-  const client = (notificationServer as unknown as { clients?: Map<string, unknown> }).clients?.get(goal.userId);
-  if (client) {
-    notificationServer.broadcastMessage({
-      type: 'agent-message',
-      userId: goal.userId,
-      payload: {
-        sender: 'agent',
-        text: message,
-        timestamp: new Date().toISOString(),
-        proactive: true,
-        projection: {
-          status: projection.status,
-          projectedValue: projection.projectedValue,
-          shortfall: projection.shortfall,
-          requiredMonthlyContribution: projection.requiredMonthlyContribution,
-        },
+  // Send notification to the specific user only (issue #138)
+  notificationServer.sendMessage(goal.userId, {
+    type: 'agent-message',
+    userId: goal.userId,
+    payload: {
+      sender: 'agent',
+      text: message,
+      timestamp: new Date().toISOString(),
+      proactive: true,
+      projection: {
+        status: projection.status,
+        projectedValue: projection.projectedValue,
+        shortfall: projection.shortfall,
+        requiredMonthlyContribution: projection.requiredMonthlyContribution,
       },
-    });
-    log.info('proactive message sent', { userId: goal.userId, shortfall: projection.shortfall });
-  } else {
-    log.warn('proactive message dropped: no active client', { userId: goal.userId });
-  }
+    },
+  });
+  log.info('proactive message sent', { userId: goal.userId, shortfall: projection.shortfall });
 }
 
 /**

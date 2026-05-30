@@ -11,4 +11,8 @@ module.exports = {
   transform: {
     ...tsJestTransformCfg,
   },
+  // Map ESM .js imports to their .ts source files so ts-jest can resolve them
+  moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+  },
 };
