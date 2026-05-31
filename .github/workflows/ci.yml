@@ -60,6 +60,9 @@ jobs:
       - name: Audit agent dependencies (high gate)
         run: npm audit --audit-level=high
       - run: npm test
+      - run: npm test --ignore-scripts
+      - name: Build agent TypeScript
+        run: npm run build
 
   build-contracts:
     runs-on: ubuntu-latest

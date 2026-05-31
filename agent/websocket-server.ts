@@ -3,16 +3,27 @@
  * Handles client connections and broadcasts proactive goal status notifications
  */
 
-import { WebSocketServer, WebSocket } from 'ws';
-import { Server, IncomingMessage } from 'http';
-import { ProactiveNotification, monitorUserGoals, UserGoal } from './notification-service.js';
-import { DEFAULT_MAX_WS_MESSAGE_BYTES, wsMessageSizeError } from './websocket-limits.js';
-import { projectGoalStatus, type GoalProjection } from './goal-projection.js';
+import { WebSocketServer, WebSocket } from "ws";
+import { Server, IncomingMessage } from "http";
+import {
+  ProactiveNotification,
+  monitorUserGoals,
+  UserGoal,
+} from "./notification-service.js";
+import {
+  DEFAULT_MAX_WS_MESSAGE_BYTES,
+  wsMessageSizeError,
+  RateLimiter,
+  DEFAULT_MAX_MESSAGES_PER_SECOND,
+  DEFAULT_RATE_LIMIT_WINDOW_MS,
+} from "./websocket-limits.js";
+import { projectGoalStatus, type GoalProjection } from "./goal-projection.js";
 
 interface ActiveClient {
   ws: WebSocket;
   userId: string;
   connectedAt: Date;
+  rateLimiter: RateLimiter;
 }
 
 /**
@@ -33,6 +44,16 @@ export interface NotificationServerOptions {
    * notification with an AI-generated message for that goal.
    */
   aiTrigger?: (goal: UserGoal, projection: GoalProjection) => Promise<void>;
+  /**
+   * Maximum messages per client per second for rate limiting.
+   * Defaults to DEFAULT_MAX_MESSAGES_PER_SECOND (10).
+   */
+  maxMessagesPerSecond?: number;
+  /**
+   * Rate limit window in milliseconds.
+   * Defaults to DEFAULT_RATE_LIMIT_WINDOW_MS (1000).
+   */
+  rateLimitWindowMs?: number;
 }
 
 /** Raw goal payload received over WebSocket (before validation). */
@@ -60,22 +81,34 @@ export class NotificationServer {
   private monitoringInterval: NodeJS.Timeout | null = null;
   private readonly maxMessageBytes: number;
   private readonly allowedOrigins: string[];
-  private readonly aiTrigger: ((goal: UserGoal, projection: GoalProjection) => Promise<void>) | undefined;
+  private readonly aiTrigger:
+    | ((goal: UserGoal, projection: GoalProjection) => Promise<void>)
+    | undefined;
+  private readonly maxMessagesPerSecond: number;
+  private readonly rateLimitWindowMs: number;
 
   constructor(httpServer: Server, options: NotificationServerOptions = {}) {
     const {
       maxMessageBytes = DEFAULT_MAX_WS_MESSAGE_BYTES,
       allowedOrigins = [],
       aiTrigger,
+      maxMessagesPerSecond = DEFAULT_MAX_MESSAGES_PER_SECOND,
+      rateLimitWindowMs = DEFAULT_RATE_LIMIT_WINDOW_MS,
     } = options;
     this.maxMessageBytes = maxMessageBytes;
     this.allowedOrigins = allowedOrigins;
     this.aiTrigger = aiTrigger;
+    this.maxMessagesPerSecond = maxMessagesPerSecond;
+    this.rateLimitWindowMs = rateLimitWindowMs;
     this.wss = new WebSocketServer({
       server: httpServer,
-      verifyClient: (info: { origin: string; secure: boolean; req: IncomingMessage }) => {
+      verifyClient: (info: {
+        origin: string;
+        secure: boolean;
+        req: IncomingMessage;
+      }) => {
         // info.origin is empty string '' for non-browser clients in ws@8
-        const origin = info.origin === '' ? undefined : info.origin;
+        const origin = info.origin === "" ? undefined : info.origin;
         return isOriginAllowed(origin, this.allowedOrigins);
       },
     });
@@ -86,16 +119,16 @@ export class NotificationServer {
    * Setup WebSocket connection handlers
    */
   private setupConnectionHandlers(): void {
-    this.wss.on('connection', (ws: WebSocket, req) => {
-      const rawUserId = extractUserIdFromUrl(req.url || '');
+    this.wss.on("connection", (ws: WebSocket, req) => {
+      const rawUserId = extractUserIdFromUrl(req.url || "");
 
       if (!rawUserId || !validateUserId(rawUserId)) {
-        ws.close(4000, 'Missing or invalid userId');
+        ws.close(4000, "Missing or invalid userId");
         return;
       }
 
       if (this.clients.has(rawUserId)) {
-        ws.close(4001, 'User already connected');
+        ws.close(4001, "User already connected");
         return;
       }
 
@@ -104,6 +137,10 @@ export class NotificationServer {
         ws,
         userId,
         connectedAt: new Date(),
+        rateLimiter: new RateLimiter(
+          this.maxMessagesPerSecond,
+          this.rateLimitWindowMs,
+        ),
       };
 
       this.clients.set(userId, client);
@@ -111,13 +148,13 @@ export class NotificationServer {
 
       // Send confirmation message
       this.sendMessage(userId, {
-        type: 'connected',
+        type: "connected",
         payload: { userId, timestamp: new Date().toISOString() },
       });
 
-      ws.on('message', (data: Buffer) => this.handleMessage(userId, data));
-      ws.on('close', () => this.handleClientClose(userId));
-      ws.on('error', (error) => this.handleClientError(userId, error));
+      ws.on("message", (data: Buffer) => this.handleMessage(userId, data));
+      ws.on("close", () => this.handleClientClose(userId));
+      ws.on("error", (error) => this.handleClientError(userId, error));
     });
   }
 
@@ -125,11 +162,30 @@ export class NotificationServer {
    * Handle incoming WebSocket messages
    */
   private handleMessage(userId: string, data: Buffer): void {
+    const client = this.clients.get(userId);
+    if (!client) {
+      console.warn(`[WS] Client not found: ${userId}`);
+      return;
+    }
+
+    // Check rate limit
+    const rateLimitError = client.rateLimiter.checkLimit();
+    if (rateLimitError !== null) {
+      console.warn(`[WS] Rate limit exceeded for ${userId}: ${rateLimitError}`);
+      this.sendMessage(userId, {
+        type: "error",
+        payload: { message: rateLimitError },
+      });
+      return;
+    }
+
     const sizeError = wsMessageSizeError(data.byteLength, this.maxMessageBytes);
     if (sizeError !== null) {
-      console.warn(`[WS] Rejected oversized message from ${userId}: ${sizeError}`);
+      console.warn(
+        `[WS] Rejected oversized message from ${userId}: ${sizeError}`,
+      );
       this.sendMessage(userId, {
-        type: 'error',
+        type: "error",
         payload: { message: sizeError },
       });
       return;
@@ -139,14 +195,17 @@ export class NotificationServer {
       const message = JSON.parse(data.toString());
 
       switch (message.type) {
-        case 'register-goal':
+        case "register-goal":
           this.registerUserGoal(userId, message.payload);
           break;
-        case 'update-goal':
+        case "update-goal":
           this.updateUserGoal(userId, message.payload);
           break;
-        case 'ping':
-          this.sendMessage(userId, { type: 'pong', timestamp: new Date().toISOString() });
+        case "ping":
+          this.sendMessage(userId, {
+            type: "pong",
+            timestamp: new Date().toISOString(),
+          });
           break;
         default:
           console.log(`[WS] Unknown message type: ${message.type}`);
@@ -162,47 +221,52 @@ export class NotificationServer {
    */
   private validateGoalPayload(
     data: GoalPayloadInput,
-    requireAll: boolean
+    requireAll: boolean,
   ): string[] {
     const errors: string[] = [];
 
     if (requireAll || data.currentBalance !== undefined) {
       const val = data.currentBalance;
-      if (typeof val !== 'number' || !Number.isFinite(val) || val < 0) {
-        errors.push('currentBalance must be a non-negative finite number');
+      if (typeof val !== "number" || !Number.isFinite(val) || val < 0) {
+        errors.push("currentBalance must be a non-negative finite number");
       }
     }
 
     if (requireAll || data.targetAmount !== undefined) {
       const val = data.targetAmount;
-      if (typeof val !== 'number' || !Number.isFinite(val) || val <= 0) {
-        errors.push('targetAmount must be a positive finite number');
+      if (typeof val !== "number" || !Number.isFinite(val) || val <= 0) {
+        errors.push("targetAmount must be a positive finite number");
       }
     }
 
     if (requireAll || data.targetDate !== undefined) {
       const val = data.targetDate;
-      if (typeof val !== 'string' || val.trim() === '') {
-        errors.push('targetDate must be a non-empty date string');
+      if (typeof val !== "string" || val.trim() === "") {
+        errors.push("targetDate must be a non-empty date string");
       } else {
         const date = new Date(val);
         if (isNaN(date.getTime())) {
-          errors.push('targetDate must be a valid date string');
+          errors.push("targetDate must be a valid date string");
         }
       }
     }
 
     if (requireAll || data.expectedAPY !== undefined) {
       const val = data.expectedAPY;
-      if (typeof val !== 'number' || !Number.isFinite(val) || val < 0 || val > 100) {
-        errors.push('expectedAPY must be a finite number between 0 and 100');
+      if (
+        typeof val !== "number" ||
+        !Number.isFinite(val) ||
+        val < 0 ||
+        val > 100
+      ) {
+        errors.push("expectedAPY must be a finite number between 0 and 100");
       }
     }
 
     if (requireAll || data.monthlyContribution !== undefined) {
       const val = data.monthlyContribution;
-      if (typeof val !== 'number' || !Number.isFinite(val) || val < 0) {
-        errors.push('monthlyContribution must be a non-negative finite number');
+      if (typeof val !== "number" || !Number.isFinite(val) || val < 0) {
+        errors.push("monthlyContribution must be a non-negative finite number");
       }
     }
 
@@ -215,14 +279,29 @@ export class NotificationServer {
    */
   private parseValidatedGoal(
     data: GoalPayloadInput,
-    fallback: Partial<ValidatedGoalData>
+    fallback: Partial<ValidatedGoalData>,
   ): ValidatedGoalData {
     return {
-      currentBalance: typeof data.currentBalance === 'number' ? data.currentBalance : fallback.currentBalance!,
-      targetAmount: typeof data.targetAmount === 'number' ? data.targetAmount : fallback.targetAmount!,
-      targetDate: typeof data.targetDate === 'string' && data.targetDate.trim() !== '' ? data.targetDate : fallback.targetDate!,
-      expectedAPY: typeof data.expectedAPY === 'number' ? data.expectedAPY : fallback.expectedAPY!,
-      monthlyContribution: typeof data.monthlyContribution === 'number' ? data.monthlyContribution : fallback.monthlyContribution!,
+      currentBalance:
+        typeof data.currentBalance === "number"
+          ? data.currentBalance
+          : fallback.currentBalance!,
+      targetAmount:
+        typeof data.targetAmount === "number"
+          ? data.targetAmount
+          : fallback.targetAmount!,
+      targetDate:
+        typeof data.targetDate === "string" && data.targetDate.trim() !== ""
+          ? data.targetDate
+          : fallback.targetDate!,
+      expectedAPY:
+        typeof data.expectedAPY === "number"
+          ? data.expectedAPY
+          : fallback.expectedAPY!,
+      monthlyContribution:
+        typeof data.monthlyContribution === "number"
+          ? data.monthlyContribution
+          : fallback.monthlyContribution!,
     };
   }
 
@@ -233,8 +312,8 @@ export class NotificationServer {
     const errors = this.validateGoalPayload(goalData, true);
     if (errors.length > 0) {
       this.sendMessage(userId, {
-        type: 'error',
-        payload: { message: `Invalid goal payload: ${errors.join('; ')}` },
+        type: "error",
+        payload: { message: `Invalid goal payload: ${errors.join("; ")}` },
       });
       return;
     }
@@ -242,7 +321,7 @@ export class NotificationServer {
     const parsed = this.parseValidatedGoal(goalData, {
       currentBalance: 0,
       targetAmount: 0,
-      targetDate: '',
+      targetDate: "",
       expectedAPY: 8.5,
       monthlyContribution: 0,
     });
@@ -274,8 +353,8 @@ export class NotificationServer {
     if (!existingGoal) {
       console.warn(`[Service] No existing goal for user: ${userId}`);
       this.sendMessage(userId, {
-        type: 'error',
-        payload: { message: 'No existing goal found for update' },
+        type: "error",
+        payload: { message: "No existing goal found for update" },
       });
       return;
     }
@@ -283,8 +362,8 @@ export class NotificationServer {
     const errors = this.validateGoalPayload(goalData, false);
     if (errors.length > 0) {
       this.sendMessage(userId, {
-        type: 'error',
-        payload: { message: `Invalid goal payload: ${errors.join('; ')}` },
+        type: "error",
+        payload: { message: `Invalid goal payload: ${errors.join("; ")}` },
       });
       return;
     }
@@ -317,39 +396,46 @@ export class NotificationServer {
    * message. Otherwise the built-in template notification is used as a fallback.
    */
   private startMonitoring(): void {
-    this.monitoringInterval = setInterval(() => {
-      const goals = Array.from(this.userGoals.values());
-      if (goals.length === 0) return;
+    this.monitoringInterval = setInterval(
+      () => {
+        const goals = Array.from(this.userGoals.values());
+        if (goals.length === 0) return;
 
-      if (this.aiTrigger !== undefined) {
-        // AI path — check each goal individually and fire the async trigger
-        for (const goal of goals) {
-          if (goal.hasNotified) continue;
-          const projection = projectGoalStatus(
-            goal.currentBalance,
-            goal.targetAmount,
-            goal.targetDate,
-            goal.expectedAPY,
-            goal.monthlyContribution,
-          );
-          if (projection.status === 'Falling Behind') {
-            // Set flag before the async call to prevent re-entry on next tick
-            goal.hasNotified = true;
-            void this.aiTrigger(goal, projection).catch((err) => {
-              console.error('[Service] aiTrigger failed for user', goal.userId, err);
-            });
+        if (this.aiTrigger !== undefined) {
+          // AI path — check each goal individually and fire the async trigger
+          for (const goal of goals) {
+            if (goal.hasNotified) continue;
+            const projection = projectGoalStatus(
+              goal.currentBalance,
+              goal.targetAmount,
+              goal.targetDate,
+              goal.expectedAPY,
+              goal.monthlyContribution,
+            );
+            if (projection.status === "Falling Behind") {
+              // Set flag before the async call to prevent re-entry on next tick
+              goal.hasNotified = true;
+              void this.aiTrigger(goal, projection).catch((err) => {
+                console.error(
+                  "[Service] aiTrigger failed for user",
+                  goal.userId,
+                  err,
+                );
+              });
+            }
+          }
+        } else {
+          // Template fallback path
+          const notifications = monitorUserGoals(goals);
+          for (const notification of notifications) {
+            this.sendNotification(notification);
           }
         }
-      } else {
-        // Template fallback path
-        const notifications = monitorUserGoals(goals);
-        for (const notification of notifications) {
-          this.sendNotification(notification);
-        }
-      }
-    }, 5 * 60 * 1000); // 5 minutes
+      },
+      5 * 60 * 1000,
+    ); // 5 minutes
 
-    console.log('[Service] Monitoring started for user goals');
+    console.log("[Service] Monitoring started for user goals");
   }
 
   /**
@@ -357,12 +443,12 @@ export class NotificationServer {
    */
   private sendNotification(notification: ProactiveNotification): void {
     this.sendMessage(notification.userId, {
-      type: 'notification',
+      type: "notification",
       payload: notification,
     });
 
     console.log(
-      `[Notification] Sent to user ${notification.userId}: ${notification.type}`
+      `[Notification] Sent to user ${notification.userId}: ${notification.type}`,
     );
   }
 
@@ -370,10 +456,7 @@ export class NotificationServer {
    * Send message to a specific connected client.
    * Logs a warning when the client is not connected or the socket is not open.
    */
-  public sendMessage(
-    userId: string,
-    message: Record<string, unknown>
-  ): void {
+  public sendMessage(userId: string, message: Record<string, unknown>): void {
     const client = this.clients.get(userId);
     if (!client) {
       console.warn(`[WS] Client not connected: ${userId}`);
@@ -410,7 +493,7 @@ export class NotificationServer {
     if (this.clients.size === 0 && this.monitoringInterval) {
       clearInterval(this.monitoringInterval);
       this.monitoringInterval = null;
-      console.log('[Service] Monitoring stopped (no active clients)');
+      console.log("[Service] Monitoring stopped (no active clients)");
     }
   }
 
@@ -430,11 +513,11 @@ export class NotificationServer {
     }
 
     this.clients.forEach((client) => {
-      client.ws.close(1000, 'Server shutting down');
+      client.ws.close(1000, "Server shutting down");
     });
 
     this.wss.close(() => {
-      console.log('[Server] WebSocket server shut down');
+      console.log("[Server] WebSocket server shut down");
     });
   }
 
@@ -459,8 +542,8 @@ export class NotificationServer {
  */
 function extractUserIdFromUrl(url: string): string | null {
   try {
-    const urlObj = new URL(url, 'http://localhost');
-    return urlObj.searchParams.get('userId');
+    const urlObj = new URL(url, "http://localhost");
+    return urlObj.searchParams.get("userId");
   } catch {
     return null;
   }
@@ -472,7 +555,7 @@ function extractUserIdFromUrl(url: string): string | null {
  * and strings containing ASCII control characters (codepoints < 0x20 or 0x7F).
  */
 export function validateUserId(userId: string): boolean {
-  if (userId.trim() === '' || userId.length > 128) return false;
+  if (userId.trim() === "" || userId.length > 128) return false;
   for (let i = 0; i < userId.length; i++) {
     const cp = userId.charCodeAt(i);
     if (cp < 0x20 || cp === 0x7f) return false;
@@ -487,7 +570,10 @@ export function validateUserId(userId: string): boolean {
  * - `origin` undefined → accept (non-browser client; no CSRF risk).
  * - Otherwise → exact case-sensitive match required.
  */
-export function isOriginAllowed(origin: string | undefined, allowedOrigins: string[]): boolean {
+export function isOriginAllowed(
+  origin: string | undefined,
+  allowedOrigins: string[],
+): boolean {
   if (allowedOrigins.length === 0) return true;
   if (origin === undefined) return true;
   return allowedOrigins.includes(origin);
