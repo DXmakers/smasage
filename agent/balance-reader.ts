@@ -1,33 +1,95 @@
-import { SorobanRpc, Address } from '@stellar/stellar-sdk';
+import {
+  SorobanRpc,
+  Address,
+  nativeToScVal,
+  scValToNative,
+  xdr,
+  TransactionBuilder,
+  BASE_FEE,
+  Networks,
+} from "@stellar/stellar-sdk";
 
 /**
  * Smasage Balance Reader
- * Reads on-chain state from the Soroban contract to provide portfolio data
- * for the frontend dashboard and AI agent decision-making.
+ * Reads on-chain state from the Soroban contract using the current Stellar SDK API.
+ * Uses simulateTransaction for read-only contract operations.
  */
 
-const SOROBAN_RPC_URL = process.env.SOROBAN_RPC_URL || 'https://soroban-test.stellar.org';
-const SMASAGE_CONTRACT_ID = process.env.SMASAGE_CONTRACT_ID || '';
+const SOROBAN_RPC_URL =
+  process.env.SOROBAN_RPC_URL || "https://soroban-test.stellar.org";
+const SMASAGE_CONTRACT_ID = process.env.SMASAGE_CONTRACT_ID || "";
+const NETWORK_PASSPHRASE =
+  process.env.NETWORK_PASSPHRASE || Networks.TESTNET_NETWORK_PASSPHRASE;
 
 const server = new SorobanRpc.Server(SOROBAN_RPC_URL);
+
+/**
+ * Helper function to invoke a read-only contract method using simulateTransaction.
+ * This is the current recommended approach for reading contract state.
+ */
+async function invokeReadOnlyMethod(
+  contractId: string,
+  method: string,
+  args: xdr.ScVal[],
+): Promise<unknown> {
+  try {
+    // Create a dummy account for simulation (sequence number doesn't matter for read-only)
+    const dummyAccount = {
+      accountId:
+        "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5V3VQ",
+      sequenceNumber: "0",
+    };
+
+    // Build a transaction with the contract invocation
+    const tx = new TransactionBuilder(dummyAccount, {
+      fee: BASE_FEE,
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(
+        SorobanRpc.Operation.invokeContractFunction({
+          contract: contractId,
+          method: method,
+          parameters: args,
+        }),
+      )
+      .setTimeout(30)
+      .build();
+
+    // Simulate the transaction to get the result
+    const simulated = await server.simulateTransaction(tx);
+
+    if (SorobanRpc.Api.isSimulationSuccess(simulated)) {
+      const result = simulated.result?.retval;
+      if (result) {
+        return scValToNative(result);
+      }
+    } else if (SorobanRpc.Api.isSimulationError(simulated)) {
+      console.error("Simulation error:", simulated.error);
+      throw new Error(`Contract simulation failed: ${simulated.error}`);
+    }
+
+    return null;
+  } catch (error) {
+    console.error("Error invoking read-only method:", error);
+    throw error;
+  }
+}
 
 /**
  * Read user's USDC balance from the Smasage contract
  */
 export async function getUserBalance(userAddress: string): Promise<number> {
   try {
-    const contractAddress = new Address(SMASAGE_CONTRACT_ID);
     const userAddr = new Address(userAddress);
+    const result = await invokeReadOnlyMethod(
+      SMASAGE_CONTRACT_ID,
+      "get_balance",
+      [userAddr.toScVal()],
+    );
 
-    const response = await server.invokeContract({
-      contractId: contractAddress.toString(),
-      method: 'get_balance',
-      args: [userAddr.toScVal()],
-    });
-
-    return response.valueOf() as number;
+    return typeof result === "number" ? result : 0;
   } catch (error) {
-    console.error('Error fetching USDC balance:', error);
+    console.error("Error fetching USDC balance:", error);
     return 0;
   }
 }
@@ -37,18 +99,16 @@ export async function getUserBalance(userAddress: string): Promise<number> {
  */
 export async function getUserGoldBalance(userAddress: string): Promise<number> {
   try {
-    const contractAddress = new Address(SMASAGE_CONTRACT_ID);
     const userAddr = new Address(userAddress);
+    const result = await invokeReadOnlyMethod(
+      SMASAGE_CONTRACT_ID,
+      "get_gold_balance",
+      [userAddr.toScVal()],
+    );
 
-    const response = await server.invokeContract({
-      contractId: contractAddress.toString(),
-      method: 'get_gold_balance',
-      args: [userAddr.toScVal()],
-    });
-
-    return response.valueOf() as number;
+    return typeof result === "number" ? result : 0;
   } catch (error) {
-    console.error('Error fetching Gold balance:', error);
+    console.error("Error fetching Gold balance:", error);
     return 0;
   }
 }
@@ -58,18 +118,16 @@ export async function getUserGoldBalance(userAddress: string): Promise<number> {
  */
 export async function getUserLPShares(userAddress: string): Promise<number> {
   try {
-    const contractAddress = new Address(SMASAGE_CONTRACT_ID);
     const userAddr = new Address(userAddress);
+    const result = await invokeReadOnlyMethod(
+      SMASAGE_CONTRACT_ID,
+      "get_lp_shares",
+      [userAddr.toScVal()],
+    );
 
-    const response = await server.invokeContract({
-      contractId: contractAddress.toString(),
-      method: 'get_lp_shares',
-      args: [userAddr.toScVal()],
-    });
-
-    return response.valueOf() as number;
+    return typeof result === "number" ? result : 0;
   } catch (error) {
-    console.error('Error fetching LP shares:', error);
+    console.error("Error fetching LP shares:", error);
     return 0;
   }
 }
@@ -96,11 +154,13 @@ export async function getPortfolioSnapshot(userAddress: string) {
 // Example usage
 async function main() {
   if (!SMASAGE_CONTRACT_ID) {
-    console.log('⚠️  SMASAGE_CONTRACT_ID not set. Using mock data for demonstration.');
-    
+    console.log(
+      "⚠️  SMASAGE_CONTRACT_ID not set. Using mock data for demonstration.",
+    );
+
     // Mock data for testing
-    const mockUser = 'GCI3KDRBQZLJ3WDNT7Y6VZLKZB4U5NP2HMQXK7PQWZ3LMRST5UVWX4YZ';
-    console.log('\n📊 Mock Portfolio Snapshot:');
+    const mockUser = "GCI3KDRBQZLJ3WDNT7Y6VZLKZB4U5NP2HMQXK7PQWZ3LMRST5UVWX4YZ";
+    console.log("\n📊 Mock Portfolio Snapshot:");
     console.log({
       usdcBalance: 1540.23,
       goldBalance: 256.78,
@@ -113,14 +173,14 @@ async function main() {
 
   const userAddress = process.env.USER_ADDRESS;
   if (!userAddress) {
-    console.error('❌ USER_ADDRESS environment variable required');
+    console.error("❌ USER_ADDRESS environment variable required");
     return;
   }
 
   console.log(`\n🔍 Fetching portfolio for ${userAddress}...`);
   const snapshot = await getPortfolioSnapshot(userAddress);
-  
-  console.log('\n📊 Portfolio Snapshot:');
+
+  console.log("\n📊 Portfolio Snapshot:");
   console.log(`   USDC Balance: $${snapshot.usdcBalance.toFixed(2)}`);
   console.log(`   Gold (XAUT): $${snapshot.goldBalance.toFixed(2)}`);
   console.log(`   LP Shares: $${snapshot.lpShares.toFixed(2)}`);
