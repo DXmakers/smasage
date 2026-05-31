@@ -192,14 +192,42 @@ export class NotificationServer {
     }
 
     try {
-      const message = JSON.parse(data.toString());
+      const parsed: unknown = JSON.parse(data.toString());
+
+      if (typeof parsed !== "object" || parsed === null) {
+        console.warn(`[WS] Invalid message format from ${userId}`);
+        this.sendMessage(userId, {
+          type: "error",
+          payload: { message: "Message must be a JSON object" },
+        });
+        return;
+      }
+
+      const message = parsed as Record<string, unknown>;
+
+      if (typeof message.type !== "string") {
+        console.warn(`[WS] Missing or invalid message type from ${userId}`);
+        this.sendMessage(userId, {
+          type: "error",
+          payload: { message: "Message must include a string 'type' field" },
+        });
+        return;
+      }
 
       switch (message.type) {
         case "register-goal":
-          this.registerUserGoal(userId, message.payload);
+          if (typeof message.payload !== "object" || message.payload === null) {
+            this.sendMessage(userId, { type: "error", payload: { message: "Payload must be an object" } });
+            return;
+          }
+          this.registerUserGoal(userId, message.payload as unknown as GoalPayloadInput);
           break;
         case "update-goal":
-          this.updateUserGoal(userId, message.payload);
+          if (typeof message.payload !== "object" || message.payload === null) {
+            this.sendMessage(userId, { type: "error", payload: { message: "Payload must be an object" } });
+            return;
+          }
+          this.updateUserGoal(userId, message.payload as unknown as GoalPayloadInput);
           break;
         case "ping":
           this.sendMessage(userId, {
