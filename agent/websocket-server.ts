@@ -18,6 +18,7 @@ import {
   DEFAULT_RATE_LIMIT_WINDOW_MS,
 } from "./websocket-limits.js";
 import { projectGoalStatus, type GoalProjection } from "./goal-projection.js";
+import { loadAgentEnv } from "./env.js";
 
 interface ActiveClient {
   ws: WebSocket;
@@ -87,7 +88,11 @@ export class NotificationServer {
   private readonly maxMessagesPerSecond: number;
   private readonly rateLimitWindowMs: number;
 
+  private readonly apiKey: string;
+
   constructor(httpServer: Server, options: NotificationServerOptions = {}) {
+    const env = loadAgentEnv();
+    this.apiKey = env.GEMINI_API_KEY;
     const {
       maxMessageBytes = DEFAULT_MAX_WS_MESSAGE_BYTES,
       allowedOrigins = [],
@@ -107,9 +112,16 @@ export class NotificationServer {
         secure: boolean;
         req: IncomingMessage;
       }) => {
-        // info.origin is empty string '' for non-browser clients in ws@8
         const origin = info.origin === "" ? undefined : info.origin;
-        return isOriginAllowed(origin, this.allowedOrigins);
+        if (!isOriginAllowed(origin, this.allowedOrigins)) {
+          return false;
+        }
+        const authHeader = info.req.headers["authorization"];
+        if (!authHeader || typeof authHeader !== "string" || !authHeader.startsWith("Bearer ")) {
+          return false;
+        }
+        const token = authHeader.slice(7).trim();
+        return token === this.apiKey;
       },
     });
     this.setupConnectionHandlers();
