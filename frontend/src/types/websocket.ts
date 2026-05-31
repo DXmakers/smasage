@@ -44,11 +44,29 @@ export type OutgoingWsMessage = RegisterGoalMessage | UpdateGoalMessage | PingMe
 // Incoming payload shapes (server → client)
 // ---------------------------------------------------------------------------
 
+/** Payload for `connected` handshake. */
+export interface ConnectedPayload {
+  userId: string;
+  timestamp: string;
+}
+
+/** Payload for `error` messages. */
+export interface ErrorPayload {
+  message: string;
+}
+
 /** Payload for `agent-message` notifications. */
 export interface AgentMessagePayload {
+  sender: 'agent';
   text: string;
   proactive?: boolean;
   timestamp?: string;
+  projection?: {
+    status: string;
+    projectedValue: number;
+    shortfall?: number;
+    requiredMonthlyContribution?: number;
+  };
 }
 
 /** Payload for `goal-update` notifications (server-pushed goal status). */
@@ -59,43 +77,65 @@ export interface GoalUpdatePayload {
   status: 'on-track' | 'ahead' | 'falling-behind';
 }
 
+/** Payload for proactive notifications (server-pushed status alerts). */
+export interface ProactiveNotificationPayload {
+  type: 'falling-behind' | 'ahead' | 'on-track';
+  userId: string;
+  timestamp: string;
+  message: string;
+  suggestion?: string;
+  projection: {
+    status: string;
+    projectedValue: number;
+    shortfall?: number;
+    surplus?: number;
+    requiredMonthlyContribution?: number;
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Discriminated union of all incoming notifications
 // ---------------------------------------------------------------------------
 
-interface ConnectedNotification {
+export interface ConnectedNotification {
   type: 'connected';
   userId?: string;
-  payload?: undefined;
+  payload: ConnectedPayload;
   timestamp?: string;
 }
 
-interface AgentMessageNotification {
+export interface ErrorNotification {
+  type: 'error';
+  userId?: string;
+  payload: ErrorPayload;
+  timestamp?: string;
+}
+
+export interface AgentMessageNotification {
   type: 'agent-message';
   userId?: string;
   payload: AgentMessagePayload;
   timestamp?: string;
 }
 
-interface GoalUpdateNotification {
+export interface GoalUpdateNotification {
   type: 'goal-update';
   userId?: string;
   payload: GoalUpdatePayload;
   timestamp?: string;
 }
 
-interface PongNotification {
-  type: 'pong';
+export interface ProactiveNotification {
+  type: 'notification';
   userId?: string;
-  payload?: undefined;
+  payload: ProactiveNotificationPayload;
   timestamp?: string;
 }
 
-/** Generic notification – used as the catch-all / unknown type. */
-interface GenericNotification {
-  type: 'notification';
+export interface PongNotification {
+  type: 'pong';
   userId?: string;
-  payload?: unknown;
+  payload?: undefined;
   timestamp?: string;
 }
 
@@ -105,14 +145,29 @@ interface GenericNotification {
  */
 export type IncomingNotification =
   | ConnectedNotification
+  | ErrorNotification
   | AgentMessageNotification
   | GoalUpdateNotification
-  | PongNotification
-  | GenericNotification;
+  | ProactiveNotification
+  | PongNotification;
 
 // ---------------------------------------------------------------------------
 // Type guards
 // ---------------------------------------------------------------------------
+
+/** Narrows a notification to `ConnectedNotification`. */
+export function isConnectedNotification(
+  n: IncomingNotification
+): n is ConnectedNotification {
+  return n.type === 'connected';
+}
+
+/** Narrows a notification to `ErrorNotification`. */
+export function isErrorNotification(
+  n: IncomingNotification
+): n is ErrorNotification {
+  return n.type === 'error';
+}
 
 /** Narrows a notification to `AgentMessageNotification`. */
 export function isAgentMessageNotification(
@@ -128,9 +183,16 @@ export function isGoalUpdateNotification(
   return n.type === 'goal-update';
 }
 
-/** Narrows a notification to the `connected` variant. */
-export function isConnectedNotification(
+/** Narrows a notification to `ProactiveNotification`. */
+export function isProactiveNotification(
   n: IncomingNotification
-): n is ConnectedNotification {
-  return n.type === 'connected';
+): n is ProactiveNotification {
+  return n.type === 'notification';
+}
+
+/** Narrows a notification to `PongNotification`. */
+export function isPongNotification(
+  n: IncomingNotification
+): n is PongNotification {
+  return n.type === 'pong';
 }

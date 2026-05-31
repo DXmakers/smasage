@@ -40,16 +40,16 @@
 
    ```bash
    cd frontend
-   npm install
-   npm run dev
-   ```
+    npm ci
+    npm run dev
+    ```
 
 3. **Setup the Agent** (in a separate terminal):
 
-   ```bash
-   cd agent
-   npm install
-   npm start
+    ```bash
+    cd agent
+    npm ci
+    npm start
    ```
 
 4. **Build the Contracts**:
