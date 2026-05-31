@@ -25,7 +25,11 @@ export async function getUserBalance(userAddress: string): Promise<number> {
       args: [userAddr.toScVal()],
     });
 
-    return response.valueOf() as number;
+    if (response === undefined || response === null) {
+      throw new Error('Soroban contract invocation returned null/undefined');
+    }
+    
+    return Number(response.valueOf());
   } catch (error) {
     console.error('Error fetching USDC balance:', error);
     return 0;
@@ -46,7 +50,11 @@ export async function getUserGoldBalance(userAddress: string): Promise<number> {
       args: [userAddr.toScVal()],
     });
 
-    return response.valueOf() as number;
+    if (response === undefined || response === null) {
+      throw new Error('Soroban contract invocation returned null/undefined');
+    }
+    
+    return Number(response.valueOf());
   } catch (error) {
     console.error('Error fetching Gold balance:', error);
     return 0;
@@ -67,7 +75,11 @@ export async function getUserLPShares(userAddress: string): Promise<number> {
       args: [userAddr.toScVal()],
     });
 
-    return response.valueOf() as number;
+    if (response === undefined || response === null) {
+      throw new Error('Soroban contract invocation returned null/undefined');
+    }
+    
+    return Number(response.valueOf());
   } catch (error) {
     console.error('Error fetching LP shares:', error);
     return 0;
