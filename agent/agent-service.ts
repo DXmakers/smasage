@@ -3,6 +3,8 @@
  * Uses Gemini to generate contextual, empathetic messages and solutions.
  */
 
+import { extractGeminiGeneratedText } from './gemini-response.js';
+import { validateGeminiGenerateContentResponse } from './gemini-response.js';
 import { extractGeminiGeneratedText } from "./gemini-response.js";
 
 export interface GoalContext {
@@ -87,6 +89,8 @@ Keep it short, conversational, and actionable.`;
       throw new Error(`Gemini API error: ${response.status} — ${error}`);
     }
 
+    const data = await response.json();
+    return extractGeminiGeneratedText(data);
     const data: unknown = await response.json();
 
     try {

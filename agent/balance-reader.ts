@@ -87,6 +87,17 @@ export async function getUserBalance(userAddress: string): Promise<number> {
       [userAddr.toScVal()],
     );
 
+    const response = await server.invokeContract({
+      contractId: contractAddress.toString(),
+      method: 'get_balance',
+      args: [userAddr.toScVal()],
+    });
+
+    if (response === undefined || response === null) {
+      throw new Error('Soroban contract invocation returned null/undefined');
+    }
+    
+    return Number(response.valueOf());
     return typeof result === "number" ? result : 0;
   } catch (error) {
     console.error("Error fetching USDC balance:", error);
@@ -106,6 +117,17 @@ export async function getUserGoldBalance(userAddress: string): Promise<number> {
       [userAddr.toScVal()],
     );
 
+    const response = await server.invokeContract({
+      contractId: contractAddress.toString(),
+      method: 'get_gold_balance',
+      args: [userAddr.toScVal()],
+    });
+
+    if (response === undefined || response === null) {
+      throw new Error('Soroban contract invocation returned null/undefined');
+    }
+    
+    return Number(response.valueOf());
     return typeof result === "number" ? result : 0;
   } catch (error) {
     console.error("Error fetching Gold balance:", error);
@@ -125,6 +147,17 @@ export async function getUserLPShares(userAddress: string): Promise<number> {
       [userAddr.toScVal()],
     );
 
+    const response = await server.invokeContract({
+      contractId: contractAddress.toString(),
+      method: 'get_lp_shares',
+      args: [userAddr.toScVal()],
+    });
+
+    if (response === undefined || response === null) {
+      throw new Error('Soroban contract invocation returned null/undefined');
+    }
+    
+    return Number(response.valueOf());
     return typeof result === "number" ? result : 0;
   } catch (error) {
     console.error("Error fetching LP shares:", error);
