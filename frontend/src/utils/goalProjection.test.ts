@@ -97,6 +97,22 @@ describe('goalProjection Utils', () => {
     });
   });
 
+  describe('zero target amount handling', () => {
+    it('handles zero target amount gracefully', () => {
+      const goal: GoalData = {
+        currentBalance: 1000,
+        targetAmount: 0,
+        targetDate: new Date().toISOString(),
+        monthlyContribution: 100,
+        expectedAPY: 5
+      };
+      
+      const result = evaluateGoalStatus(goal);
+      expect(result.progressPercentage).toBe(0);
+      expect(result.status).toBeDefined();
+    });
+  });
+
   describe('formatCurrency', () => {
     it('formats numbers as USD', () => {
       const result = formatCurrency(1234.56);
