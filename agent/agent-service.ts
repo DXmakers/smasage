@@ -4,6 +4,7 @@
  */
 
 import { extractGeminiGeneratedText } from './gemini-response.js';
+import { validateGeminiGenerateContentResponse } from './gemini-response.js';
 
 export interface GoalContext {
   userId: string;
@@ -84,7 +85,7 @@ Keep it short, conversational, and actionable.`;
       throw new Error(`Gemini API error: ${response.status} — ${error}`);
     }
 
-    const data: unknown = await response.json();
+    const data = await response.json();
     return extractGeminiGeneratedText(data);
   } catch (error) {
     console.error('Error generating proactive message:', error);
