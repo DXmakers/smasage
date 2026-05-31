@@ -3,7 +3,7 @@
  * Uses Gemini to generate contextual, empathetic messages and solutions.
  */
 
-import { extractGeminiGeneratedText } from './gemini-response.js';
+import { extractGeminiGeneratedText } from "./gemini-response.js";
 
 export interface GoalContext {
   userId: string;
@@ -37,7 +37,7 @@ TONE: Friendly, supportive, like a trusted friend who understands finance`;
  */
 export async function generateProactiveMessage(
   context: GoalContext,
-  apiKey: string
+  apiKey: string,
 ): Promise<string> {
   const userPrompt = `
 Generate a proactive notification for this user:
@@ -58,26 +58,29 @@ Generate a notification message that:
 Keep it short, conversational, and actionable.`;
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: AGENT_PROMPT }]
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
         },
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: userPrompt }]
-          }
-        ],
-        generationConfig: {
-          maxOutputTokens: 256
-        }
-      }),
-    });
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: AGENT_PROMPT }],
+          },
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: userPrompt }],
+            },
+          ],
+          generationConfig: {
+            maxOutputTokens: 256,
+          },
+        }),
+      },
+    );
 
     if (!response.ok) {
       const error = await response.text();
@@ -85,9 +88,19 @@ Keep it short, conversational, and actionable.`;
     }
 
     const data: unknown = await response.json();
-    return extractGeminiGeneratedText(data);
+
+    try {
+      return extractGeminiGeneratedText(data);
+    } catch (extractError) {
+      // If response parsing fails, log the error and use fallback
+      console.warn(
+        "Failed to extract text from Gemini response:",
+        extractError,
+      );
+      return generateFallbackMessage(context);
+    }
   } catch (error) {
-    console.error('Error generating proactive message:', error);
+    console.error("Error generating proactive message:", error);
     // Fallback to template if API fails
     return generateFallbackMessage(context);
   }
@@ -110,9 +123,7 @@ function generateFallbackMessage(context: GoalContext): string {
 /**
  * Generate suggestion text for rebalancing portfolio
  */
-export function generateAllocationSuggestion(
-  shortfallPercent: number
-): string {
+export function generateAllocationSuggestion(shortfallPercent: number): string {
   if (shortfallPercent > 15) {
     return "I'd suggest shifting to a more aggressive portfolio mix—maybe 40% Blend, 50% Soroswap LP, 10% Gold—to boost returns.";
   } else if (shortfallPercent > 7) {
@@ -138,7 +149,9 @@ export function extractSuggestion(message: string): SuggestedAdjustment | null {
   // Look for currency amounts in the message
   const amounts = message.match(/\$(\d+)/g);
   if (amounts && amounts.length > 0) {
-    const newContribution = parseInt(amounts[amounts.length - 1].replace('$', ''));
+    const newContribution = parseInt(
+      amounts[amounts.length - 1].replace("$", ""),
+    );
     return {
       newMonthlyContribution: newContribution,
     };
