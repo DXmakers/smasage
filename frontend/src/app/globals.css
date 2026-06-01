@@ -12,6 +12,21 @@
   --layout-max-width: 1400px;
   --layout-wide-max-width: 1520px;
   --chat-column-width: clamp(360px, 28vw, 420px);
+
+  /* ── Focus ring design tokens ────────────────────────────────
+   * All :focus-visible styles derive from these tokens so a single
+   * change here propagates everywhere. The ring uses --accent-primary
+   * on dark surfaces (the default) and --focus-ring-color-on-accent
+   * (#fff) on coloured/gradient surfaces where the purple would be
+   * invisible (e.g. primary buttons, install links).
+   * --focus-ring-radius is overridden per-component where the element
+   * has a different border-radius than the default 6px.
+   * ──────────────────────────────────────────────────────────── */
+  --focus-ring-color: var(--accent-primary);
+  --focus-ring-color-on-accent: #ffffff;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 3px;
+  --focus-ring-radius: 6px;
 }
 
 /* ── Accessibility: sr-only ──────────────────────────────────── */
@@ -28,10 +43,16 @@
 }
 
 /* ── Accessibility: global focus-visible ring ────────────────── */
+/*
+ * This is the single source of truth for keyboard focus rings.
+ * All component-level :focus-visible overrides below use the same
+ * --focus-ring-* tokens; they only override --focus-ring-radius or
+ * --focus-ring-color when the component surface requires it.
+ */
 :focus-visible {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: 3px;
-  border-radius: 4px;
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--focus-ring-radius);
 }
 
 * {
@@ -161,8 +182,9 @@ body {
 }
 
 .connectivity-widget-trigger:focus-visible {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: 3px;
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: 12px; /* match the trigger's own border-radius */
 }
 
 .connectivity-widget-icons {
@@ -366,6 +388,13 @@ body {
   filter: saturate(1.1);
 }
 
+/* White ring on the gradient surface — purple would be invisible */
+.btn-primary:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color-on-accent);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: 12px;
+}
+
 .btn-secondary {
   background: transparent;
   border: 1px solid var(--border);
@@ -376,6 +405,13 @@ body {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.2);
   color: #fff;
+}
+
+/* Purple ring on the dark/transparent surface */
+.btn-secondary:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: 12px;
 }
 
 .btn-content {
@@ -932,6 +968,13 @@ h2 {
   overflow: hidden;
 }
 
+/* Focus ring for keyboard-navigable bento cards */
+.bento-card:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: 16px; /* match the card's own border-radius */
+}
+
 /* Progress Section */
 .goal-section {
   background: rgba(255, 255, 255, 0.02);
@@ -1326,7 +1369,7 @@ h2 {
 }
 
 .chat-input-container input:focus {
-  outline: none; /* replaced by explicit ring below */
+  outline: none; /* visual ring is provided by :focus-visible below */
   border-color: var(--accent-primary);
   background: rgba(9, 9, 11, 0.72);
   box-shadow:
@@ -1334,9 +1377,11 @@ h2 {
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
+/* Keyboard-only ring — uses token offset 2px (tighter, inside the input wrapper) */
 .chat-input-container input:focus-visible {
-  outline: 2px solid var(--accent-primary);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: 2px;
+  border-radius: 14px; /* match the input's own border-radius */
 }
 
 .chat-input-container input::placeholder {
@@ -1400,8 +1445,9 @@ h2 {
 }
 
 .send-button:focus-visible {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: 3px;
+  outline: var(--focus-ring-width) solid var(--focus-ring-color-on-accent);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: 12px; /* match the button's own border-radius */
   /* keep transform while focused via keyboard */
   transform: translateY(-50%) scale(1.05);
 }
@@ -1561,8 +1607,9 @@ h2 {
 }
 
 .legend-item:focus-visible {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: 3px;
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: 12px; /* match the legend-item's own border-radius */
 }
 
 .legend-color {
@@ -1870,8 +1917,9 @@ h2 {
 }
 
 .modal-close-icon:focus-visible {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: 3px;
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: 50%; /* match the circular button shape */
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
 }
@@ -1900,9 +1948,9 @@ h2 {
 }
 
 .install-link:focus-visible {
-  outline: 2px solid #fff;
-  outline-offset: 4px;
-  border-radius: 12px;
+  outline: var(--focus-ring-width) solid var(--focus-ring-color-on-accent);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: 12px; /* match the link's own border-radius */
 }
 
 .close-modal {
@@ -2091,11 +2139,11 @@ h2 {
   letter-spacing: 0.04em;
 }
 
-/* ── Accessibility: connect-wallet focus ─────────────────────── */
+/* ── ErrorBoundary retry button focus ────────────────────────── */
 .error-retry-btn:focus-visible {
-  outline: 2px solid #fff;
-  outline-offset: 3px;
-  border-radius: 8px;
+  outline: var(--focus-ring-width) solid var(--focus-ring-color-on-accent);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: 8px; /* match the button's own border-radius */
 }
 
 /* ── Drawer Component ────────────────────────────────────────── */
@@ -2153,6 +2201,14 @@ h2 {
 }
 
 .drawer-close-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-main);
+}
+
+.drawer-close-btn:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: 8px; /* match the button's own border-radius */
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-main);
 }
@@ -2326,6 +2382,10 @@ h2 {
  * motion via their OS/browser settings. Functional feedback (loading
  * spinners, status indicators, focus rings) is preserved so controls
  * still communicate state changes.
+ *
+ * IMPORTANT: :focus-visible rules are intentionally NOT touched here.
+ * Focus rings are functional, not decorative, and must remain visible
+ * regardless of motion preference.
  *
  * Framer Motion components handle their own reduced-motion logic via
  * useReducedMotion(). This block covers CSS-only animations and
