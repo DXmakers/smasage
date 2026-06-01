@@ -1,0 +1,11 @@
+{
+  "extends": "./frontend/tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "isolatedModules": false
+  },
+  "include": ["frontend/**/*.ts", "frontend/**/*.tsx"]
+}

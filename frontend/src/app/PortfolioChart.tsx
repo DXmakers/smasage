@@ -92,23 +92,6 @@ export default function PortfolioChart({
                 slice.endAngle
               );
 
-              // Create donut by drawing inner circle cut-out
-              const pathWithDonut =
-                index === 0
-                  ? path.replace(
-                      'Z',
-                      ` A ${innerRadius} ${innerRadius} 0 0 0 ${slice.x1} ${slice.y1} Z`
-                    )
-                  : path.replace(
-                      'M ' + cx + ' ' + cy,
-                      `M ${slice.x2} ${slice.y2}`
-                    ).replace(
-                      'Z',
-                      ` A ${innerRadius} ${innerRadius} 0 0 ${slice.largeArc ? 0 : 1} ${
-                        slices[index - 1].x2
-                      } ${slices[index - 1].y2} Z`
-                    );
-
               return (
                 <g key={index}>
                   <path
