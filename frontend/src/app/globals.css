@@ -12,6 +12,8 @@
   --layout-max-width: 1400px;
   --layout-wide-max-width: 1520px;
   --chat-column-width: clamp(360px, 28vw, 420px);
+  --font-primary: var(--font-outfit), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: var(--font-mono), "Menlo", "Monaco", "Courier New", monospace;
 }
 
 /* ── Accessibility: sr-only ──────────────────────────────────── */
@@ -41,15 +43,7 @@
 }
 
 body {
-  font-family:
-    var(--font-outfit),
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    Helvetica,
-    Arial,
-    sans-serif;
+  font-family: var(--font-primary);
   background-color: var(--bg-dark);
   background-image:
     radial-gradient(
@@ -64,6 +58,49 @@ body {
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
+  position: relative;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(
+    circle at 20% 60%,
+    rgba(139, 92, 246, 0.08),
+    transparent 35%
+  ), radial-gradient(
+    circle at 80% 20%,
+    rgba(6, 182, 212, 0.08),
+    transparent 35%
+  );
+  animation: gradient-drift 20s ease-in-out infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before {
+    animation: none;
+  }
+}
+
+@keyframes gradient-drift {
+  0% {
+    opacity: 0.6;
+    transform: translateY(0px);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translateY(-20px);
+  }
+  100% {
+    opacity: 0.6;
+    transform: translateY(0px);
+  }
 }
 
 /* Dashboard Header */
@@ -912,6 +949,7 @@ h2 {
   font-size: 2.25rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
   display: flex;
   align-items: baseline;
   gap: 0.5rem;
@@ -1628,12 +1666,19 @@ h2 {
 .status-indicator {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   padding: 6px 12px;
   border-radius: 20px;
   font-size: 0.85rem;
   font-weight: 600;
   margin-top: 8px;
+}
+
+.status-indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .status-indicator.falling-behind {
@@ -1642,16 +1687,28 @@ h2 {
   border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
+.status-indicator.falling-behind .status-indicator-dot {
+  background: #ef4444;
+}
+
 .status-indicator.on-track {
   background: rgba(34, 197, 94, 0.1);
   color: #22c55e;
   border: 1px solid rgba(34, 197, 94, 0.3);
 }
 
+.status-indicator.on-track .status-indicator-dot {
+  background: #22c55e;
+}
+
 .status-indicator.ahead {
   background: rgba(59, 130, 246, 0.1);
   color: #3b82f6;
   border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.status-indicator.ahead .status-indicator-dot {
+  background: #3b82f6;
 }
 
 /* ── Skeleton loaders ────────────────────────────────────────── */
@@ -2013,10 +2070,23 @@ h2 {
 .goal-title {
   font-size: 1.25rem;
   margin-bottom: 4px;
+  font-weight: 600;
 }
 
 .goal-subtitle {
   font-size: 0.9rem;
+}
+
+.goal-metric {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.goal-header-content {
+  min-width: 0;
+  flex: 1;
 }
 
 .goal-status-text {
@@ -2028,9 +2098,28 @@ h2 {
 .progress-stats {
   display: flex;
   justify-content: space-between;
+  gap: 1.5rem;
   font-size: 0.85rem;
-  color: var(--text-muted);
   font-weight: 500;
+}
+
+.progress-stat-label {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+}
+
+.progress-stat-value {
+  display: block;
+  color: var(--text-main);
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .allocation-title {
