@@ -2224,3 +2224,98 @@ h2 {
   background: var(--success);
   box-shadow: 0 0 8px var(--success);
 }
+
+/* ── StatusPill (#91) ───────────────────────────────────────────── */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  user-select: none;
+}
+.status-pill__icon { font-size: 0.6rem; line-height: 1; }
+.status-pill--success { background: rgba(0,200,100,0.12); color: var(--success, #00c864); border: 1px solid rgba(0,200,100,0.25); }
+.status-pill--warning { background: rgba(255,180,0,0.12); color: #ffb400; border: 1px solid rgba(255,180,0,0.25); }
+.status-pill--error   { background: rgba(255,60,60,0.12); color: #ff4444; border: 1px solid rgba(255,60,60,0.25); }
+.status-pill--neutral { background: rgba(150,150,150,0.12); color: var(--text-muted, #888); border: 1px solid rgba(150,150,150,0.2); }
+
+/* ── MetricTile (#90) ───────────────────────────────────────────── */
+.metric-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.metric-tile__label {
+  font-size: 0.75rem;
+  color: var(--text-muted, #888);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.metric-tile__value {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 1.4rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.metric-tile__trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+.metric-tile__trend--up   { color: var(--success, #00c864); }
+.metric-tile__trend--down { color: #ff4444; }
+.metric-tile__trend--flat { color: var(--text-muted, #888); }
+.metric-tile__trend-label { font-family: 'JetBrains Mono', monospace; }
+
+/* Loading skeleton for MetricTile */
+.metric-tile--loading .metric-tile__label-skeleton,
+.metric-tile--loading .metric-tile__value-skeleton {
+  border-radius: 4px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+.metric-tile--loading .metric-tile__label-skeleton { height: 0.75rem; width: 60%; margin-bottom: 0.25rem; }
+.metric-tile--loading .metric-tile__value-skeleton { height: 1.6rem; width: 80%; }
+
+/* ── EmptyState (#105) ──────────────────────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--text-muted, #888);
+}
+.empty-state__icon { opacity: 0.4; margin-bottom: 0.25rem; }
+.empty-state__title { font-weight: 600; font-size: 0.9rem; color: var(--text-primary, #fff); margin: 0; }
+.empty-state__message { font-size: 0.8rem; margin: 0; max-width: 28ch; }
+.empty-state__action { margin-top: 0.75rem; }
+
+/* ── ErrorState (#105) ──────────────────────────────────────────── */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem 1rem;
+  text-align: center;
+}
+.error-state__icon { color: #ff4444; opacity: 0.7; margin-bottom: 0.25rem; }
+.error-state__title { font-weight: 600; font-size: 0.9rem; color: var(--text-primary, #fff); margin: 0; }
+.error-state__message { font-size: 0.8rem; color: var(--text-muted, #888); margin: 0; max-width: 28ch; }
+.error-state__retry { margin-top: 0.75rem; }
