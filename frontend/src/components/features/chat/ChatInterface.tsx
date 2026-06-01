@@ -105,13 +105,13 @@ export function ChatInterface({
           >
             {isConnected ? (
               <CheckCircle2
-                size={12}
+                size={14}
                 fill="var(--success)"
                 color="var(--bg-card)"
                 aria-hidden="true"
               />
             ) : (
-              <AlertCircle size={12} aria-hidden="true" />
+              <AlertCircle size={14} aria-hidden="true" />
             )}{" "}
             {isConnected ? connectionCopy.online : connectionCopy.offline}
           </motion.div>
@@ -126,7 +126,7 @@ export function ChatInterface({
           animate={{ opacity: 1, y: 0 }}
           transition={prefersReduced ? { duration: 0.12 } : { duration: 0.2 }}
         >
-          <AlertCircle size={14} aria-hidden="true" />
+          <AlertCircle size={16} aria-hidden="true" />
           <span>Notification service is offline. You can still draft and send local chat messages.</span>
         </motion.div>
       )}
@@ -166,7 +166,7 @@ export function ChatInterface({
                   animate={{ opacity: 1, x: 0 }}
                   transition={prefersReduced ? { duration: 0.12 } : { delay: 0.2 }}
                 >
-                  <AlertCircle size={12} aria-hidden="true" /> Proactive Nudge
+                  <AlertCircle size={14} aria-hidden="true" /> Proactive Nudge
                 </motion.div>
               )}
               <div className="message-bubble">
@@ -235,7 +235,7 @@ export function ChatInterface({
           whileTap={prefersReduced ? undefined : { scale: 0.95 }}
           transition={prefersReduced ? { duration: 0.01 } : { duration: 0.15 }}
         >
-          <Send size={18} aria-hidden="true" />
+          <Send size={20} aria-hidden="true" />
         </motion.button>
       </form>
     </div>

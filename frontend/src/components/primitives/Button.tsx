@@ -1,4 +1,5 @@
-import type { JSX } from "react";
+import { JSX } from "react";
+import { Loader2 } from "lucide-react";
 import { motion, useReducedMotion, type HTMLMotionProps } from "framer-motion";
 
 export type ButtonVariant = "primary" | "secondary";
@@ -64,31 +65,11 @@ export function Button({
           animate={{ opacity: 1 }}
           transition={prefersReduced ? { duration: 0.01 } : { duration: 0.2 }}
         >
-          <motion.svg
+          <Loader2
             className="btn-loader"
-            viewBox="0 0 24 24"
-            fill="none"
-            focusable="false"
-            // Spinner rotation is functional feedback (shows loading state), not
-            // purely decorative — keep it but slow it down for reduced motion.
-            animate={{ rotate: 360 }}
-            transition={
-              prefersReduced
-                ? { duration: 2, repeat: Infinity, ease: "linear" }
-                : { duration: 0.8, repeat: Infinity, ease: "linear" }
-            }
-          >
-            <circle
-              cx="12"
-              cy="12"
-              r="9"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeDasharray="56.5"
-              strokeDashoffset="18"
-            />
-          </motion.svg>
+            size={18}
+            aria-hidden="true"
+          />
         </motion.span>
       ) : null}
     </motion.button>
