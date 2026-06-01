@@ -19,6 +19,7 @@ import {
   isPongNotification,
 } from "../types/websocket";
 import { DashboardHeader } from "../components/layout/DashboardHeader";
+import type { WalletConnectionStatus } from "../components/features/wallet/ConnectivityWidget";
 import { ConnectWalletButton } from "../components/features/wallet/ConnectWalletButton";
 import { useFreighter } from "../hooks/useFreighter";
 import { ErrorBoundary } from "../components/feedback/ErrorBoundary";
@@ -33,6 +34,9 @@ import { goalData, initialMessages } from "../config/mockData";
 import toast from 'react-hot-toast';
 import { GoalTracker } from "../components/features/portfolio/GoalTracker";
 import { GlassPanel } from "../components/layout/GlassPanel";
+import { Card } from "../components/primitives";
+import { Drawer } from "../components/features/wallet/Drawer";
+import { Network, Cpu, ShieldCheck, Zap } from "lucide-react";
 
 import { motion, useReducedMotion } from "framer-motion";
 
@@ -67,7 +71,9 @@ export default function Home() {
     connect,
     showInstallModal,
     setShowInstallModal,
-    isConnecting
+    isConnecting,
+    isInstalled,
+    isCheckingInstallation,
   } = useFreighter();
 
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
@@ -77,8 +83,15 @@ export default function Home() {
     getDefaultAllocations(),
   );
 
-  const [wsConnected, setWsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  const walletStatus = useMemo<WalletConnectionStatus>(() => {
+    if (publicKey) return "connected";
+    if (isConnecting || isCheckingInstallation) return "connecting";
+    if (!isInstalled) return "unavailable";
+    return "disconnected";
+  }, [isCheckingInstallation, isConnecting, isInstalled, publicKey]);
 
   // Calculate goal status and progress using useMemo to avoid cascading renders
   const { goalStatus, progress } = useMemo(() => {
@@ -90,12 +103,15 @@ export default function Home() {
   }, []);
 
   // WebSocket notifications
-  const { registerGoal } = useNotifications({
+  const {
+    registerGoal,
+    isConnected: wsConnected,
+    connectionStatus: webSocketStatus,
+  } = useNotifications({
     userId: "user-demo-001",
     onNotification: (notification) => {
       if (isConnectedNotification(notification)) {
         console.log("[App] Connected to notification server");
-        setWsConnected(true);
         setIsLoading(false);
       } else if (isAgentMessageNotification(notification)) {
         const { text, proactive, timestamp } = notification.payload;
@@ -143,7 +159,6 @@ export default function Home() {
     },
     onError: (error) => {
       console.error("[App] WebSocket error:", error);
-      toast.error('Failed to connect to notification service');
     },
     enabled: true,
   });
@@ -153,6 +168,13 @@ export default function Home() {
     const t = setTimeout(() => setIsLoading(false), 3000);
     return () => clearTimeout(t);
   }, []);
+
+  useEffect(() => {
+    if (webSocketStatus === "connected" || webSocketStatus === "offline") {
+      const t = setTimeout(() => setIsLoading(false), 0);
+      return () => clearTimeout(t);
+    }
+  }, [webSocketStatus]);
 
   // Register goal with notification server on mount
   useEffect(() => {
@@ -202,13 +224,94 @@ export default function Home() {
   return (
     <ErrorBoundary fallbackMessage="The dashboard failed to load. Please try again.">
       <>
-        <DashboardHeader wsConnected={wsConnected}>
+        <DashboardHeader
+          webSocketStatus={webSocketStatus}
+          walletStatus={walletStatus}
+          publicKey={publicKey}
+          onOpenSettings={() => setIsDrawerOpen(true)}
+        >
           <ConnectWalletButton
             onClick={connect}
             publicKey={publicKey || undefined}
             isConnecting={isConnecting}
           />
         </DashboardHeader>
+
+        <Drawer
+          isOpen={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+          title="Technical Details"
+        >
+          <div className="tech-section">
+            <h3 className="tech-section-title">
+              <Network size={14} /> Connectivity
+            </h3>
+            <div className="tech-grid">
+              <div className="tech-item">
+                <div className="tech-label">Notification Service</div>
+                <div className="tech-status">
+                  <span className={`status-dot ${wsConnected ? 'online' : ''}`} />
+                  {wsConnected ? 'Connected (WebSocket)' : 'Connecting...'}
+                </div>
+              </div>
+              <div className="tech-item">
+                <div className="tech-label">Stellar RPC (Soroban)</div>
+                <div className="tech-status">
+                  <span className="status-dot online" />
+                  Mainnet - 🚀 Horizon
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="tech-section">
+            <h3 className="tech-section-title">
+              <ShieldCheck size={14} /> Wallet & Security
+            </h3>
+            <div className="tech-grid">
+              <div className="tech-item">
+                <div className="tech-label">Public Key</div>
+                <div className="tech-value">{publicKey || 'Not connected'}</div>
+              </div>
+              <div className="tech-item">
+                <div className="tech-label">Provider</div>
+                <div className="tech-value">Freighter Wallet</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="tech-section">
+            <h3 className="tech-section-title">
+              <Cpu size={14} /> AI Context
+            </h3>
+            <div className="tech-grid">
+              <div className="tech-item">
+                <div className="tech-label">Active Model</div>
+                <div className="tech-value">OpenClaw (Gemini 1.5 Pro)</div>
+              </div>
+              <div className="tech-item">
+                <div className="tech-label">Knowledge Cutoff</div>
+                <div className="tech-value">May 2024</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="tech-section">
+            <h3 className="tech-section-title">
+              <Zap size={14} /> Protocol Routing
+            </h3>
+            <div className="tech-grid">
+              <div className="tech-item">
+                <div className="tech-label">Primary Aggregator</div>
+                <div className="tech-value">Smasage V1</div>
+              </div>
+              <div className="tech-item">
+                <div className="tech-label">Supported Protocols</div>
+                <div className="tech-value">Blend, Soroswap, Aquarius</div>
+              </div>
+            </div>
+          </div>
+        </Drawer>
 
         <WalletModalTest
           isOpen={showInstallModal}
@@ -262,8 +365,9 @@ export default function Home() {
               </motion.div>
             )}
 
-            <motion.div className="allocation-list" variants={itemVariants}>
-              <h3 className="allocation-title">
+            <motion.div variants={itemVariants}>
+              <Card className="allocation-list" aria-labelledby="allocation-title">
+                <h3 id="allocation-title" className="allocation-title">
                 <Activity size={18} aria-hidden="true" /> Active Strategy Routes
               </h3>
 
@@ -273,13 +377,12 @@ export default function Home() {
                 <div className="skeleton-fade-in">
                   <PortfolioChart
                     allocations={allocations}
-                    width={320}
-                    height={280}
                     showLegend={true}
                     animated={true}
                   />
                 </div>
               )}
+              </Card>
             </motion.div>
           </GlassPanel>
 
