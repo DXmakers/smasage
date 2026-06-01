@@ -6,6 +6,7 @@
 import { projectGoalStatus } from './goal-projection.js';
 import { monitorUserGoals, type UserGoal } from './notification-service.js';
 import { generateProactiveMessage } from './agent-service.js';
+import { loadAgentEnv } from './env.js';
 
 /**
  * Simulate a user falling behind on their goal
@@ -54,8 +55,10 @@ async function testProactiveNotification() {
   if (projection.status === 'Falling Behind') {
     console.log('🤖 Generating OpenClaw Message...\n');
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    let apiKey: string | undefined;
+    try {
+      apiKey = loadAgentEnv().GEMINI_API_KEY;
+    } catch {
       console.log('⚠️  GEMINI_API_KEY not set. Using fallback message.\n');
     }
 
@@ -75,7 +78,7 @@ async function testProactiveNotification() {
             projection.requiredMonthlyContribution - userGoal.monthlyContribution
           ),
         },
-        apiKey || ''
+        apiKey ?? ''
       );
 
       console.log('✉️  Notification Message:');
