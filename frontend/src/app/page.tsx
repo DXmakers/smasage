@@ -16,6 +16,10 @@ import { useNotifications } from "../hooks/useNotifications";
 import {
   isAgentMessageNotification,
   isConnectedNotification,
+  isErrorNotification,
+  isGoalUpdateNotification,
+  isProactiveNotification,
+  isPongNotification,
 } from "../types/websocket";
 import { DashboardHeader } from "./components/DashboardHeader";
 import { ConnectWalletButton } from "./components/ConnectWalletButton";
@@ -93,6 +97,24 @@ export default function Home() {
         if (parsedAllocations) {
           setAllocations(parsedAllocations);
         }
+      } else if (isProactiveNotification(notification)) {
+        const { message, suggestion } = notification.payload;
+        const agentMsg: ChatMessage = {
+          id: Date.now(),
+          sender: "agent",
+          text: suggestion ? `${message}\n\n💡 ${suggestion}` : message,
+          proactive: true,
+          timestamp: notification.timestamp,
+        };
+        setMessages((prev: ChatMessage[]) => [...prev, agentMsg]);
+        toast('💡 New suggestion from OpenClaw', { duration: 5000 });
+      } else if (isGoalUpdateNotification(notification)) {
+        console.log("[App] Goal update received", notification.payload);
+      } else if (isErrorNotification(notification)) {
+        console.error("[App] Server error:", notification.payload.message);
+        toast.error(notification.payload.message);
+      } else if (isPongNotification(notification)) {
+        console.log("[App] Pong received");
       }
     },
     onError: (error) => {
@@ -228,6 +250,7 @@ export default function Home() {
               messages={messages}
               isTyping={isTyping}
               onSendMessage={handleSendMessage}
+              isConnected={wsConnected}
             />
           </GlassPanel>
         </main>

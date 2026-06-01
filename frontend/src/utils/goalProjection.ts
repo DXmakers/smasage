@@ -21,7 +21,8 @@ export interface ProjectionResult {
 }
 
 /**
- * Calculate compound interest (client-side version)
+ * Calculate compound interest (client-side version).
+ * When apy is 0, falls back to simple linear accumulation to avoid division by zero.
  */
 export function calculateProjection(
   principal: number,
@@ -31,15 +32,18 @@ export function calculateProjection(
 ): number {
   const n = 12; // monthly compounding
   const r = apy / 100;
-  
-  const compoundAmount = principal * Math.pow((1 + r / n), n * years);
-  
-  let contributionAmount = 0;
-  if (monthlyContribution > 0) {
-    contributionAmount = monthlyContribution * 
-      (Math.pow((1 + r / n), n * years) - 1) / (r / n);
+
+  if (r === 0) {
+    // No yield: principal + flat contributions
+    return principal + monthlyContribution * n * years;
   }
-  
+
+  const compoundAmount = principal * Math.pow((1 + r / n), n * years);
+
+  const contributionAmount = monthlyContribution > 0
+    ? monthlyContribution * (Math.pow((1 + r / n), n * years) - 1) / (r / n)
+    : 0;
+
   return compoundAmount + contributionAmount;
 }
 
