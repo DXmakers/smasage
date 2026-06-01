@@ -23,6 +23,19 @@ function getStatusClass(status: ProjectionResult["status"]): string {
   }
 }
 
+function getStatusLabel(status: ProjectionResult["status"]): string {
+  switch (status) {
+    case "Ahead":
+      return "Ahead of schedule";
+    case "On Track":
+      return "On track";
+    case "Falling Behind":
+      return "Falling behind";
+    default:
+      return "On track";
+  }
+}
+
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -53,20 +66,22 @@ export function GoalTracker({
 }: GoalTrackerProps) {
   const statusColor = getStatusColor(status);
   const clampedProgress = Math.max(0, Math.min(100, progressPercentage));
+  const statusLabel = getStatusLabel(status);
 
   return (
     <div className="goal-section skeleton-fade-in">
       <div className="goal-header">
-        <div>
+        <div className="goal-header-content">
           <h3 className="goal-title">{goalName}</h3>
           <p className="text-muted goal-subtitle">
-            Target: {formatCurrency(targetAmount)} by {formatTargetDate(targetDate)}
+            Target: <span className="goal-metric">{formatCurrency(targetAmount)}</span> by <time>{formatTargetDate(targetDate)}</time>
           </p>
-          <div className={`status-indicator ${getStatusClass(status)}`}>
-            Status: {status}
+          <div className={`status-indicator ${getStatusClass(status)}`} role="status" aria-label={`Status: ${statusLabel}`}>
+            <span className="status-indicator-dot"></span>
+            {statusLabel}
           </div>
         </div>
-        <Target size={32} color={statusColor} opacity={0.8} />
+        <Target size={32} color={statusColor} opacity={0.8} aria-hidden="true" />
       </div>
 
       <div className="progress-bar-container">
@@ -77,13 +92,19 @@ export function GoalTracker({
           aria-valuenow={Math.round(clampedProgress)}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label="Savings goal progress"
+          aria-label={`Savings goal progress: ${Math.round(clampedProgress)}% complete`}
         ></div>
       </div>
 
       <div className="progress-stats">
-        <span>{Math.round(clampedProgress)}% Completed</span>
-        <span>{formatCurrency(remainingAmount)} Remaining</span>
+        <div>
+          <span className="progress-stat-label">Completed</span>
+          <span className="progress-stat-value">{Math.round(clampedProgress)}%</span>
+        </div>
+        <div>
+          <span className="progress-stat-label">Remaining</span>
+          <span className="progress-stat-value">{formatCurrency(remainingAmount)}</span>
+        </div>
       </div>
     </div>
   );

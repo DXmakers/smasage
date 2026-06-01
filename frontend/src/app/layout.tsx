@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Outfit } from 'next/font/google';
+import { Outfit, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { WalletProvider } from '../components/features/wallet/WalletContext';
 import { ErrorBoundary } from '../components/feedback/ErrorBoundary';
@@ -10,6 +10,13 @@ const outfit = Outfit({
   weight: ['300', '400', '500', '600', '700'],
   display: 'swap',
   variable: '--font-outfit',
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-mono',
 });
 
 export const metadata: Metadata = {
@@ -23,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={outfit.variable}>
+    <html lang="en" className={`${outfit.variable} ${jetbrainsMono.variable}`}>
       <body className={outfit.className}>
         <WalletProvider>
           <ErrorBoundary fallbackMessage="The app ran into a problem. Please try again.">
