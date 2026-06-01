@@ -42,8 +42,8 @@ export function parseAllocationsFromMessage(
     // Skip very short descriptions (likely parsing error)
     if (assetName.length < 3) continue;
 
-    // Determine color based on asset name
-    const color = getColorForAsset(assetName);
+    // Determine color based on asset name (index for deterministic fallback)
+    const color = getColorForAsset(assetName, allocations.length);
 
     allocations.push({
       name: assetName,
@@ -72,9 +72,10 @@ export function parseAllocationsFromMessage(
 }
 
 /**
- * Determine color based on asset name keywords
+ * Determine color based on asset name keywords.
+ * For unknown assets, cycles deterministically by index to avoid non-determinism.
  */
-function getColorForAsset(assetName: string): string {
+export function getColorForAsset(assetName: string, index: number = 0): string {
   const lower = assetName.toLowerCase();
 
   if (lower.includes("blend")) return ALLOCATION_COLORS.blend;
@@ -85,9 +86,9 @@ function getColorForAsset(assetName: string): string {
   if (lower.includes("usdc")) return ALLOCATION_COLORS.usdc;
   if (lower.includes("xlm")) return ALLOCATION_COLORS.xlm;
 
-  // Cycle through colors for unknown assets
+  // Cycle through colors deterministically by index for unknown assets
   const colors = Object.values(ALLOCATION_COLORS);
-  return colors[Math.floor(Math.random() * colors.length)];
+  return colors[index % colors.length];
 }
 
 /**
