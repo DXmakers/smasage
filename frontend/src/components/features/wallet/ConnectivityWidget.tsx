@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronDown, Loader2, Wallet, Wifi } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { WebSocketConnectionStatus } from "../../../hooks/useNotifications";
 
 export type WalletConnectionStatus =
@@ -60,12 +60,29 @@ export function ConnectivityWidget({
 }: ConnectivityWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const panelId = useId();
+  const prefersReduced = useReducedMotion();
   const webSocketTone = getTone(webSocketStatus);
   const walletTone = getTone(walletStatus);
   const summary =
     webSocketStatus === "connected" && walletStatus === "connected"
       ? "Systems ready"
       : "Connectivity needs attention";
+
+  // Decorative hover/tap effects are skipped for reduced-motion users.
+  // The panel still opens/closes — that's functional, not decorative — but
+  // the entrance uses a simple opacity fade instead of y + scale movement.
+  const panelInitial = prefersReduced
+    ? { opacity: 0 }
+    : { opacity: 0, y: -8, scale: 0.98 };
+  const panelAnimate = prefersReduced
+    ? { opacity: 1 }
+    : { opacity: 1, y: 0, scale: 1 };
+  const panelExit = prefersReduced
+    ? { opacity: 0 }
+    : { opacity: 0, y: -8, scale: 0.98 };
+  const panelTransition = prefersReduced
+    ? { duration: 0.12 }
+    : { duration: 0.18, ease: [0.4, 0, 0.2, 1] };
 
   return (
     <div className="connectivity-widget">
@@ -81,9 +98,9 @@ export function ConnectivityWidget({
             setIsOpen(false);
           }
         }}
-        whileHover={{ y: -1 }}
-        whileTap={{ scale: 0.98 }}
-        transition={{ duration: 0.15 }}
+        whileHover={prefersReduced ? undefined : { y: -1 }}
+        whileTap={prefersReduced ? undefined : { scale: 0.98 }}
+        transition={prefersReduced ? { duration: 0.01 } : { duration: 0.15 }}
       >
         <span className="connectivity-widget-icons" aria-hidden="true">
           <span className={`connectivity-dot connectivity-dot--${webSocketTone}`} />
@@ -103,10 +120,10 @@ export function ConnectivityWidget({
             id={panelId}
             className="connectivity-widget-panel"
             role="status"
-            initial={{ opacity: 0, y: -8, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.98 }}
-            transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+            initial={panelInitial}
+            animate={panelAnimate}
+            exit={panelExit}
+            transition={panelTransition}
           >
             <div className={`connectivity-widget-row connectivity-widget-row--${webSocketTone}`}>
               <Wifi size={16} aria-hidden="true" />

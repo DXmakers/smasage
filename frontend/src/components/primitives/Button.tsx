@@ -1,5 +1,5 @@
 import type { JSX } from "react";
-import { motion, type HTMLMotionProps } from "framer-motion";
+import { motion, useReducedMotion, type HTMLMotionProps } from "framer-motion";
 
 export type ButtonVariant = "primary" | "secondary";
 
@@ -18,10 +18,10 @@ export function Button({
   loadingLabel = "Loading",
   ...rest
 }: ButtonProps): JSX.Element {
+  const prefersReduced = useReducedMotion();
   const classes = ["btn", `btn-${variant}`, className].filter(Boolean).join(" ");
 
   // Omit motion-conflicting props from rest to avoid type mismatches with motion.button
-  // We filter out props that have different signatures in motion.button than in standard button
   const motionProps: Record<string, unknown> = { ...rest } as unknown as Record<string, unknown>;
   delete motionProps.onAnimationStart;
   delete motionProps.onDrag;
@@ -29,21 +29,30 @@ export function Button({
   delete motionProps.onDragStart;
   delete motionProps.style;
 
+  // Decorative scale interactions are disabled for reduced-motion users.
+  // The button still shows :active via CSS (transform: scale(0.95)) which is
+  // a CSS-only affordance that browsers can suppress via their own UA sheet.
+  const hoverProp = !prefersReduced && !disabled && !isLoading ? { scale: 1.02 } : undefined;
+  const tapProp = !prefersReduced && !disabled && !isLoading ? { scale: 0.98 } : undefined;
+  const transitionProp = prefersReduced
+    ? { duration: 0.01 }
+    : { duration: 0.15, ease: "easeInOut" };
+
   return (
     <motion.button
       className={classes}
       disabled={disabled || isLoading}
       aria-busy={isLoading || undefined}
       aria-label={isLoading ? loadingLabel : rest["aria-label"]}
-      whileHover={!disabled && !isLoading ? { scale: 1.02 } : undefined}
-      whileTap={!disabled && !isLoading ? { scale: 0.98 } : undefined}
-      transition={{ duration: 0.15, ease: "easeInOut" }}
+      whileHover={hoverProp}
+      whileTap={tapProp}
+      transition={transitionProp}
       {...(motionProps as HTMLMotionProps<"button">)}
     >
       <motion.span
         className="btn-content"
         animate={{ opacity: isLoading ? 0 : 1 }}
-        transition={{ duration: 0.2 }}
+        transition={prefersReduced ? { duration: 0.01 } : { duration: 0.2 }}
       >
         {children}
       </motion.span>
@@ -53,15 +62,21 @@ export function Button({
           aria-hidden="true"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.2 }}
+          transition={prefersReduced ? { duration: 0.01 } : { duration: 0.2 }}
         >
           <motion.svg
             className="btn-loader"
             viewBox="0 0 24 24"
             fill="none"
             focusable="false"
+            // Spinner rotation is functional feedback (shows loading state), not
+            // purely decorative — keep it but slow it down for reduced motion.
             animate={{ rotate: 360 }}
-            transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+            transition={
+              prefersReduced
+                ? { duration: 2, repeat: Infinity, ease: "linear" }
+                : { duration: 0.8, repeat: Infinity, ease: "linear" }
+            }
           >
             <circle
               cx="12"

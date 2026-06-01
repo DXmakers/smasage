@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Bot, CheckCircle2, Send } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 export interface ChatMessage {
   id: number;
@@ -20,12 +20,6 @@ export interface ChatInterfaceProps {
   isConnected?: boolean;
 }
 
-const messageVariants = {
-  initial: { opacity: 0, y: 12, scale: 0.98 },
-  animate: { opacity: 1, y: 0, scale: 1 },
-  exit: { opacity: 0, scale: 0.98 }
-};
-
 const connectionCopy = {
   online: "Live",
   offline: "Offline",
@@ -41,6 +35,25 @@ export function ChatInterface({
   const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const trimmedInput = inputValue.trim();
+  const prefersReduced = useReducedMotion();
+
+  // Reduced-motion: messages fade in without y/scale movement.
+  // Full motion: slide up + scale entrance for each message.
+  const messageVariants = useMemo(
+    () =>
+      prefersReduced
+        ? {
+            initial: { opacity: 0 },
+            animate: { opacity: 1 },
+            exit: { opacity: 0 },
+          }
+        : {
+            initial: { opacity: 0, y: 12, scale: 0.98 },
+            animate: { opacity: 1, y: 0, scale: 1 },
+            exit: { opacity: 0, scale: 0.98 },
+          },
+    [prefersReduced],
+  );
 
   const groupedMessages = useMemo(
     () =>
@@ -58,8 +71,8 @@ export function ChatInterface({
   );
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]);
+    messagesEndRef.current?.scrollIntoView({ behavior: prefersReduced ? "auto" : "smooth" });
+  }, [messages, isTyping, prefersReduced]);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -76,8 +89,9 @@ export function ChatInterface({
         <motion.div
           className="agent-avatar"
           aria-hidden="true"
-          whileHover={{ scale: 1.05 }}
-          transition={{ duration: 0.2 }}
+          // Avatar hover scale is decorative — skip for reduced motion.
+          whileHover={prefersReduced ? undefined : { scale: 1.05 }}
+          transition={prefersReduced ? { duration: 0.01 } : { duration: 0.2 }}
         >
           <Bot size={28} />
         </motion.div>
@@ -87,7 +101,7 @@ export function ChatInterface({
             className={`chat-status${isConnected ? "" : " chat-status--offline"}`}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
+            transition={prefersReduced ? { duration: 0.01 } : { delay: 0.2 }}
           >
             {isConnected ? (
               <CheckCircle2
@@ -108,9 +122,9 @@ export function ChatInterface({
         <motion.div
           className="chat-connection-alert"
           role="status"
-          initial={{ opacity: 0, y: -6 }}
+          initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
+          transition={prefersReduced ? { duration: 0.12 } : { duration: 0.2 }}
         >
           <AlertCircle size={14} aria-hidden="true" />
           <span>Notification service is offline. You can still draft and send local chat messages.</span>
@@ -139,18 +153,18 @@ export function ChatInterface({
               initial="initial"
               animate="animate"
               exit="exit"
-              transition={{
-                duration: 0.3,
-                delay: index * 0.05,
-                ease: [0.4, 0, 0.2, 1]
-              }}
+              transition={
+                prefersReduced
+                  ? { duration: 0.12 }
+                  : { duration: 0.3, delay: index * 0.05, ease: [0.4, 0, 0.2, 1] }
+              }
             >
               {msg.proactive && msg.startsGroup && (
                 <motion.div
                   className="proactive-label"
-                  initial={{ opacity: 0, x: -10 }}
+                  initial={prefersReduced ? { opacity: 0 } : { opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.2 }}
+                  transition={prefersReduced ? { duration: 0.12 } : { delay: 0.2 }}
                 >
                   <AlertCircle size={12} aria-hidden="true" /> Proactive Nudge
                 </motion.div>
@@ -174,10 +188,10 @@ export function ChatInterface({
           <motion.div
             className="message agent"
             role="status"
-            initial={{ opacity: 0, y: 10 }}
+            initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={prefersReduced ? { duration: 0.12 } : { duration: 0.2 }}
           >
             <span className="sr-only">Agent is typing...</span>
             <span className="typing-copy" aria-hidden="true">OpenClaw is typing</span>
@@ -203,8 +217,9 @@ export function ChatInterface({
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           aria-describedby={!isConnected ? "chat-offline-description" : undefined}
-          whileFocus={{ scale: 1.01 }}
-          transition={{ duration: 0.2 }}
+          // Input scale on focus is decorative — skip for reduced motion.
+          whileFocus={prefersReduced ? undefined : { scale: 1.01 }}
+          transition={prefersReduced ? { duration: 0.01 } : { duration: 0.2 }}
         />
         {!isConnected && (
           <span id="chat-offline-description" className="sr-only">
@@ -216,9 +231,9 @@ export function ChatInterface({
           className="send-button"
           aria-label="Send message"
           disabled={!trimmedInput}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
-          transition={{ duration: 0.15 }}
+          whileHover={prefersReduced ? undefined : { scale: 1.1 }}
+          whileTap={prefersReduced ? undefined : { scale: 0.95 }}
+          transition={prefersReduced ? { duration: 0.01 } : { duration: 0.15 }}
         >
           <Send size={18} aria-hidden="true" />
         </motion.button>
