@@ -1,9 +1,9 @@
-import type { ButtonHTMLAttributes, JSX } from "react";
+import type { JSX } from "react";
 import { motion, type HTMLMotionProps } from "framer-motion";
 
 export type ButtonVariant = "primary" | "secondary";
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps extends HTMLMotionProps<"button"> {
   variant?: ButtonVariant;
   isLoading?: boolean;
   loadingLabel?: string;

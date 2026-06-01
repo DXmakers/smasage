@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { useWallet } from "../app/components/WalletContext";
+import { useWallet } from "../components/features/wallet/WalletContext";
 import toast from 'react-hot-toast';
 
 /**

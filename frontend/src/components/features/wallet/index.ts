@@ -1,3 +1,2 @@
-// Wallet feature components will be exported here
-// Example: export { ConnectWalletButton } from './ConnectWalletButton';
-export {};
+export * from './WalletModal';
+export * from './WalletModalTest';

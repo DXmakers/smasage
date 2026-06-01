@@ -3,7 +3,7 @@ import { Settings } from 'lucide-react';
 import {
   ConnectivityWidget,
   type WalletConnectionStatus,
-} from './ConnectivityWidget';
+} from '../features/wallet/ConnectivityWidget';
 import type { WebSocketConnectionStatus } from '../../hooks/useNotifications';
 
 interface DashboardHeaderProps {

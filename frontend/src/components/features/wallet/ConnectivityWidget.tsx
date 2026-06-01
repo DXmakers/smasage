@@ -3,7 +3,7 @@
 import { useId, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronDown, Loader2, Wallet, Wifi } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import type { WebSocketConnectionStatus } from "../../hooks/useNotifications";
+import type { WebSocketConnectionStatus } from "../../../hooks/useNotifications";
 
 export type WalletConnectionStatus =
   | "connected"

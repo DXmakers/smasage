@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import { Outfit } from 'next/font/google';
 import './globals.css';
-import { WalletProvider } from './components/WalletContext';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import { WalletProvider } from '../components/features/wallet/WalletContext';
+import { ErrorBoundary } from '../components/feedback/ErrorBoundary';
 import { Toaster } from 'react-hot-toast';
 
 const outfit = Outfit({
