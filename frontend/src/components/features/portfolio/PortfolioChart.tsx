@@ -7,7 +7,7 @@ import {
   generatePiePath,
   calculateLabelPosition,
   normalizeAllocations,
-} from '../utils/chartUtils';
+} from '../../../utils/chartUtils';
 
 interface PortfolioChartProps {
   allocations: AssetAllocation[];

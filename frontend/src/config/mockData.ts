@@ -1,4 +1,4 @@
-import type { ChatMessage } from '../app/components/ChatInterface';
+import type { ChatMessage } from '../components/features/chat/ChatInterface';
 import type { AssetAllocation } from '../utils/chartUtils';
 import type { GoalData } from '../utils/goalProjection';
 

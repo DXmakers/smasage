@@ -1,2 +1,3 @@
-// Layout components will be exported here
-// Example: export { DashboardHeader } from './DashboardHeader';
+export * from './DashboardHeader';
+export * from './GlassPanel';
+export * from './WsStatusIndicator';

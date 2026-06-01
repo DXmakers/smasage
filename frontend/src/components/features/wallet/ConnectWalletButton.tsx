@@ -1,5 +1,5 @@
-import React from 'react';
-import { Button } from './Button';
+import React from "react";
+import { Button } from "@/components/primitives/Button";
 
 export interface ConnectWalletButtonProps {
   onClick: () => void;
@@ -8,20 +8,20 @@ export interface ConnectWalletButtonProps {
 }
 
 function truncatePublicKey(key: string) {
-  if (!key) return '';
-  return key.slice(0, 4) + '...' + key.slice(-4);
+  if (!key) return "";
+  return key.slice(0, 4) + "..." + key.slice(-4);
 }
 
 export const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
   onClick,
   publicKey,
-  isConnecting = false
+  isConnecting = false,
 }) => {
   const ariaLabel = isConnecting
-    ? 'Connecting wallet, please wait'
+    ? "Connecting wallet, please wait"
     : publicKey
-    ? `Wallet connected: ${truncatePublicKey(publicKey)}`
-    : 'Connect Stellar wallet';
+      ? `Wallet connected: ${truncatePublicKey(publicKey)}`
+      : "Connect Stellar wallet";
 
   return (
     <Button
@@ -32,8 +32,7 @@ export const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
       aria-label={ariaLabel}
       loadingLabel="Connecting wallet"
     >
-      {publicKey ? truncatePublicKey(publicKey) : 'Connect Wallet'}
+      {publicKey ? truncatePublicKey(publicKey) : "Connect Wallet"}
     </Button>
   );
 };
-

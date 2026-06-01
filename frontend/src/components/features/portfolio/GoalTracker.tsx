@@ -1,5 +1,5 @@
 import { Target } from "lucide-react";
-import { getStatusColor, type ProjectionResult } from "../../utils/goalProjection";
+import { getStatusColor, type ProjectionResult } from "../../../utils/goalProjection";
 
 export interface GoalTrackerProps {
   goalName: string;

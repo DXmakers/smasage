@@ -1,9 +1,9 @@
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
 import { Activity } from "lucide-react";
-import { PortfolioStats } from "./components/PortfolioStats";
+import { PortfolioStats } from "../components/features/portfolio/PortfolioStats";
 import { evaluateGoalStatus } from "../utils/goalProjection";
-import PortfolioChart from "./PortfolioChart";
+import PortfolioChart from "../components/features/portfolio/PortfolioChart";
 import {
   parseAllocationsFromMessage,
   getDefaultAllocations,
@@ -18,23 +18,50 @@ import {
   isProactiveNotification,
   isPongNotification,
 } from "../types/websocket";
-import { DashboardHeader } from "./components/DashboardHeader";
-import { ConnectWalletButton } from "./components/ConnectWalletButton";
+import { DashboardHeader } from "../components/layout/DashboardHeader";
+import { ConnectWalletButton } from "../components/features/wallet/ConnectWalletButton";
 import { useFreighter } from "../hooks/useFreighter";
-import { ErrorBoundary } from "./components/ErrorBoundary";
+import { ErrorBoundary } from "../components/feedback/ErrorBoundary";
 import {
   PortfolioStatsSkeleton,
   GoalTrackerSkeleton,
   PortfolioChartSkeleton,
-} from "./components/SkeletonLoader";
-import { WalletModalTest } from "./components/WalletModalTest";
-import { ChatInterface, type ChatMessage } from "./components/ChatInterface";
+} from "../components/feedback/SkeletonLoader";
+import { WalletModalTest } from "../components/features/wallet/WalletModalTest";
+import { ChatInterface, type ChatMessage } from "../components/features/chat/ChatInterface";
 import { goalData, initialMessages } from "../config/mockData";
 import toast from 'react-hot-toast';
-import { GoalTracker } from "./components/GoalTracker";
-import { GlassPanel } from "./components/GlassPanel";
+import { GoalTracker } from "../components/features/portfolio/GoalTracker";
+import { GlassPanel } from "../components/layout/GlassPanel";
+
+import { motion, useReducedMotion } from "framer-motion";
 
 export default function Home() {
+  const shouldReduceMotion = useReducedMotion();
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        delayChildren: 0.1,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: shouldReduceMotion ? 0.05 : 0.5,
+        ease: [0.4, 0, 0.2, 1],
+      },
+    },
+  };
+
   const {
     publicKey,
     connect,
@@ -187,40 +214,55 @@ export default function Home() {
           isOpen={showInstallModal}
           onClose={() => setShowInstallModal(false)}
         />
-        <main className="app-container" aria-label="Portfolio dashboard">
+        <motion.main
+          className="app-container"
+          aria-label="Portfolio dashboard"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
           {/* Left Panel - Dashboard */}
-          <GlassPanel className="dashboard-portfolio">
-            <h1>Smasage Portfolio</h1>
-            <p className="text-muted portfolio-subtitle">
+          <GlassPanel className="dashboard-portfolio" variants={itemVariants}>
+            <motion.h1 variants={itemVariants}>Smasage Portfolio</motion.h1>
+            <motion.p
+              className="text-muted portfolio-subtitle"
+              variants={itemVariants}
+            >
               Real-time on-chain tracking • Stellar Mainnet 🚀
-            </p>
+            </motion.p>
 
             {isLoading ? (
-              <PortfolioStatsSkeleton />
+              <motion.div variants={itemVariants}>
+                <PortfolioStatsSkeleton />
+              </motion.div>
             ) : (
-              <div className="skeleton-fade-in">
+              <motion.div className="skeleton-fade-in" variants={itemVariants}>
                 <PortfolioStats
                   totalValue={goalData.currentBalance}
                   apy={goalData.expectedAPY}
                   valueChange={12.4}
                 />
-              </div>
+              </motion.div>
             )}
 
             {isLoading ? (
-              <GoalTrackerSkeleton />
+              <motion.div variants={itemVariants}>
+                <GoalTrackerSkeleton />
+              </motion.div>
             ) : (
-              <GoalTracker
-                goalName="European Vacation"
-                targetAmount={goalData.targetAmount}
-                targetDate={goalData.targetDate}
-                status={goalStatus}
-                progressPercentage={progress}
-                remainingAmount={goalData.targetAmount - goalData.currentBalance}
-              />
+              <motion.div variants={itemVariants}>
+                <GoalTracker
+                  goalName="European Vacation"
+                  targetAmount={goalData.targetAmount}
+                  targetDate={goalData.targetDate}
+                  status={goalStatus}
+                  progressPercentage={progress}
+                  remainingAmount={goalData.targetAmount - goalData.currentBalance}
+                />
+              </motion.div>
             )}
 
-            <div className="allocation-list">
+            <motion.div className="allocation-list" variants={itemVariants}>
               <h3 className="allocation-title">
                 <Activity size={18} aria-hidden="true" /> Active Strategy Routes
               </h3>
@@ -238,11 +280,11 @@ export default function Home() {
                   />
                 </div>
               )}
-            </div>
+            </motion.div>
           </GlassPanel>
 
           {/* Right Panel - Chat Agent */}
-          <GlassPanel className="dashboard-chat">
+          <GlassPanel className="dashboard-chat" variants={itemVariants}>
             <ChatInterface
               messages={messages}
               isTyping={isTyping}
@@ -250,7 +292,7 @@ export default function Home() {
               isConnected={wsConnected}
             />
           </GlassPanel>
-        </main>
+        </motion.main>
       </>
     </ErrorBoundary>
   );
