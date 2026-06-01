@@ -88,7 +88,7 @@ export function evaluateGoalStatus(goal: GoalData): ProjectionResult {
   const shortfall = difference < 0 ? Math.abs(difference) : 0;
   const surplus = difference > 0 ? difference : 0;
   
-  const progressPercentage = (goal.currentBalance / goal.targetAmount) * 100;
+  const progressPercentage = goal.targetAmount > 0 ? (goal.currentBalance / goal.targetAmount) * 100 : 0;
   
   return {
     status,

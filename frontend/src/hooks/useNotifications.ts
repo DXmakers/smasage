@@ -16,6 +16,9 @@ import toast from 'react-hot-toast';
 // Re-export so existing imports from this module continue to work.
 export type { IncomingNotification } from "../types/websocket";
 
+/** Minimum ms between error toasts to prevent flooding during reconnect loops. */
+const ERROR_TOAST_DEBOUNCE_MS = 5_000;
+
 interface UseNotificationsOptions {
   userId: string;
   onNotification?: (notification: IncomingNotification) => void;
@@ -31,7 +34,18 @@ export function useNotifications(options: UseNotificationsOptions) {
   // Holds the latest connect function so ws.onclose can schedule a reconnect
   // without closing over a stale reference or creating a circular declaration.
   const connectRef = useRef<() => void>(() => undefined);
+  /** Timestamp of the last error toast shown — used to debounce repeated toasts. */
+  const lastErrorToastRef = useRef<number>(0);
   const [isConnected, setIsConnected] = useState(false);
+
+  /** Show an error toast at most once per ERROR_TOAST_DEBOUNCE_MS window. */
+  const showErrorToast = useCallback((message: string) => {
+    const now = Date.now();
+    if (now - lastErrorToastRef.current >= ERROR_TOAST_DEBOUNCE_MS) {
+      lastErrorToastRef.current = now;
+      toast.error(message);
+    }
+  }, []);
 
   const connect = useCallback(() => {
     if (!enabled || !userId) return;
@@ -71,7 +85,7 @@ export function useNotifications(options: UseNotificationsOptions) {
       ws.onerror = (event) => {
         const error = new Error("WebSocket error");
         console.error("[WS] Error:", error, event);
-        toast.error('Connection to notification service failed');
+        showErrorToast('Connection to notification service failed');
         onError?.(error);
       };
 
@@ -79,7 +93,7 @@ export function useNotifications(options: UseNotificationsOptions) {
         console.log("[WS] Disconnected");
         wsRef.current = null;
         setIsConnected(false);
-        toast.error('Disconnected from notification service');
+        showErrorToast('Disconnected from notification service');
 
         // Attempt reconnection with exponential backoff
         if (reconnectAttemptsRef.current < maxReconnectAttempts) {
@@ -100,7 +114,7 @@ export function useNotifications(options: UseNotificationsOptions) {
       console.error("[WS] Connection error:", error);
       onError?.(error instanceof Error ? error : new Error(String(error)));
     }
-  }, [userId, onNotification, onError, enabled, maxReconnectAttempts]);
+  }, [userId, onNotification, onError, enabled, maxReconnectAttempts, showErrorToast]);
 
   // Keep the ref in sync so onclose always calls the latest version.
   useEffect(() => {

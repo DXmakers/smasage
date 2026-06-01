@@ -58,15 +58,8 @@ describe('goalProjection Utils', () => {
       // Set target amount closer to projected value
       const targetDate = new Date();
       targetDate.setFullYear(targetDate.getFullYear() + 1.5); 
-      const goal: GoalData = {
-        currentBalance: 10000,
-        targetAmount: 20000,
-        targetDate: targetDate.toISOString(),
-        monthlyContribution: 500,
-        expectedAPY: 5
-      };
       // Projected will be approx 10000 * 1.07 + 500 * (1.07-1)/(0.05/12) = 10700 + 4200 = 14900 (Too low)
-      // Let's adjust
+      // Let's adjust with higher balance and lower target
       const goalOnTrack: GoalData = {
         currentBalance: 15000,
         targetAmount: 20000,
@@ -94,6 +87,22 @@ describe('goalProjection Utils', () => {
       const result = evaluateGoalStatus(goal);
       expect(result.status).toBe('Falling Behind');
       expect(result.shortfall).toBeGreaterThan(0);
+    });
+  });
+
+  describe('zero target amount handling', () => {
+    it('handles zero target amount gracefully', () => {
+      const goal: GoalData = {
+        currentBalance: 1000,
+        targetAmount: 0,
+        targetDate: new Date().toISOString(),
+        monthlyContribution: 100,
+        expectedAPY: 5
+      };
+      
+      const result = evaluateGoalStatus(goal);
+      expect(result.progressPercentage).toBe(0);
+      expect(result.status).toBeDefined();
     });
   });
 
