@@ -2319,3 +2319,174 @@ h2 {
 .error-state__title { font-weight: 600; font-size: 0.9rem; color: var(--text-primary, #fff); margin: 0; }
 .error-state__message { font-size: 0.8rem; color: var(--text-muted, #888); margin: 0; max-width: 28ch; }
 .error-state__retry { margin-top: 0.75rem; }
+
+/* ── Reduced Motion: respect prefers-reduced-motion ─────────── */
+/*
+ * Decorative animations are disabled when the user has requested reduced
+ * motion via their OS/browser settings. Functional feedback (loading
+ * spinners, status indicators, focus rings) is preserved so controls
+ * still communicate state changes.
+ *
+ * Framer Motion components handle their own reduced-motion logic via
+ * useReducedMotion(). This block covers CSS-only animations and
+ * transitions that Framer Motion does not control.
+ */
+@media (prefers-reduced-motion: reduce) {
+  /* ── Disable all decorative keyframe animations ── */
+
+  /* Progress bar shimmer — decorative polish, not informational */
+  .progress-bar-fill::after {
+    animation: none;
+  }
+
+  /* Skeleton loader sweep — decorative loading shimmer */
+  .skeleton-shimmer {
+    animation: none;
+  }
+
+  /* MetricTile loading skeleton shimmer */
+  .metric-tile--loading .metric-tile__label-skeleton,
+  .metric-tile--loading .metric-tile__value-skeleton {
+    animation: none;
+  }
+
+  /* Typing indicator bounce — decorative; the sr-only text still announces state */
+  .typing-indicator span {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  /* WebSocket pulse / blink — status is conveyed by color + text, not animation */
+  .ws-indicator.connected {
+    animation: none;
+  }
+
+  .ws-indicator.connecting {
+    animation: none;
+    opacity: 1;
+  }
+
+  /* Connectivity widget spinner — this IS functional (shows pending state).
+   * We keep it but slow it down so it is less distracting. */
+  .connectivity-widget-spinner {
+    animation-duration: 2s;
+  }
+
+  /* Skeleton fade-in — replace animated entrance with instant display */
+  .skeleton-fade-in {
+    animation: none;
+    opacity: 1;
+  }
+
+  /* Modal overlay fade-in */
+  .modal-overlay {
+    animation: none;
+  }
+
+  /* Modal slide-up entrance */
+  .modal-content {
+    animation: none;
+  }
+
+  /* ── Disable decorative CSS transitions ── */
+
+  /* Glass panel hover lift — decorative */
+  .glass-panel {
+    transition: none;
+  }
+
+  .glass-panel:hover {
+    transform: none;
+  }
+
+  /* Button transform/filter transitions — scale feedback is decorative.
+   * Box-shadow and background transitions are kept at a reduced duration
+   * so state changes (hover, focus) are still visible without motion. */
+  .btn {
+    transition:
+      box-shadow 0.01s,
+      background 0.01s,
+      border-color 0.01s;
+  }
+
+  .btn:active:not(:disabled) {
+    transform: none;
+  }
+
+  /* Send button hover/active transforms */
+  .send-button:hover {
+    transform: translateY(-50%);
+  }
+
+  .send-button:active {
+    transform: translateY(-50%);
+  }
+
+  .send-button:focus-visible {
+    transform: translateY(-50%);
+  }
+
+  /* Progress bar width transition — the width change communicates progress.
+   * We keep a very short transition so the change is visible but not animated. */
+  .progress-bar-fill {
+    transition: width 0.01s;
+  }
+
+  /* Pie chart slice hover transitions */
+  .pie-slice {
+    transition: none;
+  }
+
+  /* Chart label transitions */
+  .chart-label {
+    transition: none;
+  }
+
+  /* Legend item hover transitions */
+  .legend-item {
+    transition: none;
+  }
+
+  .legend-color {
+    transition: none;
+  }
+
+  .legend-item:hover .legend-color {
+    transform: none;
+  }
+
+  /* Connectivity widget chevron rotation */
+  .connectivity-widget-chevron {
+    transition: none;
+  }
+
+  /* WS indicator transition */
+  .ws-indicator {
+    transition: none;
+  }
+
+  /* Message bubble hover transitions */
+  .message-bubble {
+    transition: none;
+  }
+
+  /* Modal close icon rotation on hover */
+  .modal-close-icon:hover {
+    transform: none;
+  }
+
+  /* Install link scale on hover */
+  .install-link:hover {
+    transform: none;
+  }
+
+  /* Chat input transitions */
+  .chat-input-container input {
+    transition: none;
+  }
+
+  .chat-input-container input::placeholder {
+    transition: none;
+  }
+}

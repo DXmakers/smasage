@@ -41,32 +41,13 @@ import { Drawer } from "../components/features/wallet/Drawer";
 import { Network, Cpu, ShieldCheck, Zap } from "lucide-react";
 
 import { motion, useReducedMotion } from "framer-motion";
+import { makeContainerVariants, makeEntranceVariants } from "../lib/motion";
 
 export default function Home() {
-  const shouldReduceMotion = useReducedMotion();
+  const prefersReduced = useReducedMotion();
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-        delayChildren: 0.1,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: shouldReduceMotion ? 0.05 : 0.5,
-        ease: [0.4, 0, 0.2, 1],
-      },
-    },
-  };
+  const containerVariants = makeContainerVariants(!!prefersReduced);
+  const itemVariants = makeEntranceVariants(!!prefersReduced);
 
   const {
     publicKey,
