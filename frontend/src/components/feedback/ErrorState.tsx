@@ -28,7 +28,7 @@ export function ErrorState({
       {onRetry && (
         <button
           type="button"
-          className="error-state__retry btn btn--primary"
+          className="error-state__retry btn btn-primary"
           onClick={onRetry}
         >
           Try again
