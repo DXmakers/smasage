@@ -2,10 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Activity } from "lucide-react";
 import { PortfolioStats } from "./components/PortfolioStats";
-import {
-  evaluateGoalStatus,
-  type GoalData,
-} from "../utils/goalProjection";
+import { evaluateGoalStatus } from "../utils/goalProjection";
 import PortfolioChart from "./PortfolioChart";
 import {
   parseAllocationsFromMessage,
@@ -63,7 +60,7 @@ export default function Home() {
       goalStatus: result.status,
       progress: result.progressPercentage,
     };
-  }, [goalData]);
+  }, []);
 
   // WebSocket notifications
   const { registerGoal } = useNotifications({
@@ -142,7 +139,7 @@ export default function Home() {
         monthlyContribution: goalData.monthlyContribution,
       });
     }
-  }, [wsConnected, registerGoal, goalData]);
+  }, [wsConnected, registerGoal]);
 
   const handleSendMessage = (message: string) => {
     const trimmed = message.trim();
