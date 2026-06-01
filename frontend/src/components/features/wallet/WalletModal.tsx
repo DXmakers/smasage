@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
-import { Button } from './Button';
+import { Button } from '../../primitives/Button';
 
 interface WalletModalProps {
   isOpen: boolean;
@@ -96,15 +96,15 @@ export const WalletModal: React.FC<WalletModalProps> = ({ isOpen, onClose }) => 
           <X size={20} aria-hidden="true" />
         </button>
 
-        <h2 id="modal-title" style={{ fontSize: '1.75rem', marginBottom: '1rem' }}>
+        <h2 id="modal-title" className="modal-title">
           Freighter Wallet Not Detected
         </h2>
 
-        <p id="modal-description" className="text-muted" style={{ marginBottom: '2rem' }}>
+        <p id="modal-description" className="text-muted modal-description">
           Please install the Freighter browser extension to securely connect your Stellar wallet and start crushing your goals.
         </p>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className="modal-actions">
           <a
             ref={installLinkRef}
             href="https://freighter.app/"

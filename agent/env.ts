@@ -11,6 +11,8 @@
 export interface AgentEnv {
   GEMINI_API_KEY: string;
   NOTIFICATION_PORT: number;
+  /** Allowed WebSocket origins. Empty list means allow all (dev mode). */
+  ALLOWED_ORIGINS: string[];
 }
 
 export interface ValidateEnvSuccess {
@@ -28,6 +30,33 @@ export type ValidateEnvResult = ValidateEnvSuccess | ValidateEnvFailure;
 export const DEFAULT_NOTIFICATION_PORT = 3001;
 const MIN_PORT = 1;
 const MAX_PORT = 65535;
+export const DEFAULT_ALLOWED_ORIGINS_RAW = 'http://localhost:3000';
+
+/**
+ * Parse a comma-separated `ALLOWED_ORIGINS` env string into a string array.
+ * Returns an empty array when the value is absent or blank (allow-all / dev mode).
+ */
+export function parseAllowedOrigins(raw: string | undefined): string[] {
+  if (raw === undefined || raw.trim() === '') {
+    return [];
+  }
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+/**
+ * Parse `GEMINI_API_KEY` from a raw env value.
+ * Returns a definite non-empty string after trim, or `undefined` when missing.
+ */
+export function parseGeminiApiKey(raw: string | undefined): string | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+  const trimmed = raw.trim();
+  return trimmed === '' ? undefined : trimmed;
+}
 
 /**
  * Pure validator: takes a raw map of env vars and returns either the typed
@@ -37,13 +66,10 @@ const MAX_PORT = 65535;
 export function validateEnv(raw: Record<string, string | undefined>): ValidateEnvResult {
   const errors: string[] = [];
 
-  // GEMINI_API_KEY — required, non-empty string
-  const apiKeyRaw = raw.GEMINI_API_KEY;
-  let apiKey: string | undefined;
-  if (apiKeyRaw === undefined || apiKeyRaw.trim() === '') {
+  // GEMINI_API_KEY — required, non-empty string (trimmed)
+  const apiKey = parseGeminiApiKey(raw.GEMINI_API_KEY);
+  if (apiKey === undefined) {
     errors.push('GEMINI_API_KEY is required');
-  } else {
-    apiKey = apiKeyRaw;
   }
 
   // NOTIFICATION_PORT — optional integer in [1, 65535], defaults to 3001
@@ -62,10 +88,14 @@ export function validateEnv(raw: Record<string, string | undefined>): ValidateEn
     }
   }
 
+  // ALLOWED_ORIGINS — optional comma-separated list; absent defaults to localhost:3000
+  const allowedOrigins = parseAllowedOrigins(raw.ALLOWED_ORIGINS ?? DEFAULT_ALLOWED_ORIGINS_RAW);
+
   if (errors.length > 0 || apiKey === undefined) {
     return { ok: false, errors };
   }
-  return { ok: true, env: { GEMINI_API_KEY: apiKey, NOTIFICATION_PORT: port } };
+
+  return { ok: true, env: { GEMINI_API_KEY: apiKey, NOTIFICATION_PORT: port, ALLOWED_ORIGINS: allowedOrigins } };
 }
 
 /**

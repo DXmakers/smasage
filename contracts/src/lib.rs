@@ -1321,8 +1321,18 @@ pub fn withdraw_from_blend(
     #[test]
     fn test_soroswap_integration() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, SmasageYieldRouter);
+        let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
+
+
+
+        let admin = Address::generate(&env);
+        let user = Address::generate(&env);
+        
+        // Register mocks
+        let router_id = env.register(MockRouter, ());
+        let usdc_id = env.register(MockToken, ());
+        let xlm_id = env.register(MockToken, ());
 
 
     let usdc_received = Self::call_blend_withdraw(
@@ -1407,20 +1417,20 @@ pub fn withdraw_from_blend(
     #[test]
     fn test_withdraw_unwinds_blend_and_lp() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, SmasageYieldRouter);
+        let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
 
         let admin = Address::generate(&env);
         let user = Address::generate(&env);
-        let router = env.register_contract(None, MockRouter);
-        let usdc = env.register_contract(None, MockToken);
-        let xlm = env.register_contract(None, MockToken);
+        let router = env.register(MockRouter, ());
+        let usdc = env.register(MockToken, ());
+        let xlm = env.register(MockToken, ());
         env.mock_all_auths();
 
         client.initialize(&admin);
         client.initialize_soroswap(&admin, &router, &usdc, &xlm);
         
-        let blend_pool = env.register_contract(None, MockBlendPool);
+        let blend_pool = env.register(MockBlendPool, ());
         client.initialize_blend(&blend_pool, &usdc);
         let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool);
         blend_pool_client.initialize(&INDEX_RATE_PRECISION);
@@ -1442,23 +1452,31 @@ pub fn withdraw_from_blend(
 
     }
 
+
     Self::transfer_usdc_to_user(&env, &to, usdc_received)?;
 
     Ok(usdc_received)
 }
 
 
+    #[test]
+    fn test_gold_allocation_tracking() {
+        let env = Env::default();
+        let contract_id = env.register(SmasageYieldRouter, ());
+        let client = SmasageYieldRouterClient::new(&env, &contract_id);
+
+
         let admin = Address::generate(&env);
         let user = Address::generate(&env);
-        let router = env.register_contract(None, MockRouter);
-        let usdc = env.register_contract(None, MockToken);
-        let xlm = env.register_contract(None, MockToken);
+        let router = env.register(MockRouter, ());
+        let usdc = env.register(MockToken, ());
+        let xlm = env.register(MockToken, ());
         env.mock_all_auths();
 
         client.initialize(&admin);
         client.initialize_soroswap(&admin, &router, &usdc, &xlm);
         
-        let blend_pool = env.register_contract(None, MockBlendPool);
+        let blend_pool = env.register(MockBlendPool, ());
         client.initialize_blend(&blend_pool, &usdc);
         let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool);
         blend_pool_client.initialize(&INDEX_RATE_PRECISION);
@@ -1621,7 +1639,7 @@ pub fn mint(env: Env, to: Address, amount: i128) {
     #[test]
     fn test_blend_initialization() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, SmasageYieldRouter);
+        let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
 
         let blend_pool = Address::generate(&env);
@@ -1642,13 +1660,13 @@ pub fn mint(env: Env, to: Address, amount: i128) {
         let env = Env::default();
         
         // Register contracts
-        let contract_id = env.register_contract(None, SmasageYieldRouter);
+        let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
         
-        let blend_pool_id = env.register_contract(None, MockBlendPool);
+        let blend_pool_id = env.register(MockBlendPool, ());
         let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
         
-        let token_id = env.register_contract(None, MockToken);
+        let token_id = env.register(MockToken, ());
         let token_client = MockTokenClient::new(&env, &token_id);
         
         // Create addresses
@@ -1729,8 +1747,15 @@ pub fn balance(env: Env, id: Address) -> i128 {
         let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
 
+
         let blend_pool_id = env.register(MockBlendPool, ());
         let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
+
+
+        
+        let blend_pool_id = env.register(MockBlendPool, ());
+        let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
+        
 
         let token_id = env.register(MockToken, ());
         let token_client = MockTokenClient::new(&env, &token_id);
@@ -1780,8 +1805,15 @@ pub fn balance(env: Env, id: Address) -> i128 {
         let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
 
+
         let blend_pool_id = env.register(MockBlendPool, ());
         let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
+
+
+        
+        let blend_pool_id = env.register(MockBlendPool, ());
+        let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
+        
 
         let token_id = env.register(MockToken, ());
         let token_client = MockTokenClient::new(&env, &token_id);
@@ -1827,9 +1859,15 @@ pub fn balance(env: Env, id: Address) -> i128 {
         let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
 
+
         let blend_pool_id = env.register(MockBlendPool, ());
         let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
 
+
+        
+        let blend_pool_id = env.register(MockBlendPool, ());
+        let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
+        
         let token_id = env.register(MockToken, ());
         let token_client = MockTokenClient::new(&env, &token_id);
 
@@ -1870,8 +1908,15 @@ pub fn balance(env: Env, id: Address) -> i128 {
         let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
 
+
         let blend_pool_id = env.register(MockBlendPool, ());
         let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
+
+
+        
+        let blend_pool_id = env.register(MockBlendPool, ());
+        let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
+        
 
         let token_id = env.register(MockToken, ());
         let token_client = MockTokenClient::new(&env, &token_id);
@@ -1951,6 +1996,12 @@ pub fn balance(env: Env, id: Address) -> i128 {
         let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
 
+
+        let blend_pool_id = env.register(MockBlendPool, ());
+        let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
+
+
+        
         let blend_pool_id = env.register(MockBlendPool, ());
         let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
 
@@ -2008,8 +2059,15 @@ pub fn balance(env: Env, id: Address) -> i128 {
         let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
 
+
         let blend_pool_id = env.register(MockBlendPool, ());
         let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
+
+
+        
+        let blend_pool_id = env.register(MockBlendPool, ());
+        let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
+        
 
         let token_id = env.register(MockToken, ());
         let token_client = MockTokenClient::new(&env, &token_id);
@@ -2062,8 +2120,15 @@ pub fn balance(env: Env, id: Address) -> i128 {
         let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
 
+
         let blend_pool_id = env.register(MockBlendPool, ());
         let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
+
+
+        
+        let blend_pool_id = env.register(MockBlendPool, ());
+        let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);
+        
 
         let token_id = env.register(MockToken, ());
         let token_client = MockTokenClient::new(&env, &token_id);
@@ -2089,6 +2154,9 @@ pub fn balance(env: Env, id: Address) -> i128 {
         let env = Env::default();
         let contract_id = env.register(SmasageYieldRouter, ());
         let client = SmasageYieldRouterClient::new(&env, &contract_id);
+
+
+        
 
         let blend_pool_id = env.register(MockBlendPool, ());
         let blend_pool_client = MockBlendPoolClient::new(&env, &blend_pool_id);

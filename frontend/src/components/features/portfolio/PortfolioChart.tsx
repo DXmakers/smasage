@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from "react";
 import {
-  AssetAllocation,
+  type AssetAllocation,
   calculatePieSlices,
   generatePiePath,
   calculateLabelPosition,
   normalizeAllocations,
-} from '../utils/chartUtils';
+} from '../../../utils/chartUtils';
 
 interface PortfolioChartProps {
   allocations: AssetAllocation[];
@@ -23,6 +23,8 @@ interface HoveredSlice {
   percentage: number;
 }
 
+const MIN_VISIBLE_LABEL_PERCENTAGE = 8;
+
 export default function PortfolioChart({
   allocations,
   width = 320,
@@ -32,35 +34,38 @@ export default function PortfolioChart({
 }: PortfolioChartProps) {
   const [hoveredSlice, setHoveredSlice] = useState<HoveredSlice | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const chartSize = Math.min(width, height);
 
   // Normalize allocations to ensure they sum to 100%
   const normalizedAllocations = useMemo(
     () => normalizeAllocations(allocations),
-    [allocations]
+    [allocations],
   );
 
   // Calculate pie slices
-  const cx = width / 2;
-  const cy = height / 2;
-  const outerRadius = Math.min(width, height) / 2 - 20;
+  const cx = chartSize / 2;
+  const cy = chartSize / 2;
+  const outerRadius = chartSize / 2 - 18;
   const innerRadius = outerRadius * 0.45; // For donut effect
 
   const slices = useMemo(
     () => calculatePieSlices(normalizedAllocations, cx, cy, outerRadius),
-    [normalizedAllocations, cx, cy, outerRadius]
+    [normalizedAllocations, cx, cy, outerRadius],
   );
 
   const handleMouseEnter = (
     index: number,
     name: string,
     percentage: number,
-    event: React.MouseEvent<SVGPathElement>
+    event: React.MouseEvent<SVGPathElement>,
   ) => {
-    const rect = (event.currentTarget.parentElement as Element)?.getBoundingClientRect();
+    const rect = event.currentTarget.ownerSVGElement?.getBoundingClientRect();
     if (rect) {
+      const x = ((event.clientX - rect.left) / rect.width) * chartSize;
+      const y = ((event.clientY - rect.top) / rect.height) * chartSize;
       setTooltipPos({
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top,
+        x: Math.min(Math.max(x, 66), chartSize - 66),
+        y: Math.min(Math.max(y, 48), chartSize - 12),
       });
     }
     setHoveredSlice({ index, name, percentage });
@@ -73,7 +78,13 @@ export default function PortfolioChart({
   return (
     <div className="portfolio-chart-container">
       <div className="chart-wrapper">
-        <svg width={width} height={height} className="portfolio-chart-svg">
+        <svg
+          viewBox={`0 0 ${chartSize} ${chartSize}`}
+          className="portfolio-chart-svg"
+          role="img"
+          aria-label="Portfolio allocation donut chart"
+          preserveAspectRatio="xMidYMid meet"
+        >
           <defs>
             <filter id="chart-shadow" x="-50%" y="-50%" width="200%" height="200%">
               <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.2" />
@@ -89,38 +100,16 @@ export default function PortfolioChart({
                 slice.cy,
                 slice.radius,
                 slice.startAngle,
-                slice.endAngle
+                slice.endAngle,
               );
 
-              // Create donut by drawing inner circle cut-out
-              const pathWithDonut =
-                index === 0
-                  ? path.replace(
-                      'Z',
-                      ` A ${innerRadius} ${innerRadius} 0 0 0 ${slice.x1} ${slice.y1} Z`
-                    )
-                  : path.replace(
-                      'M ' + cx + ' ' + cy,
-                      `M ${slice.x2} ${slice.y2}`
-                    ).replace(
-                      'Z',
-                      ` A ${innerRadius} ${innerRadius} 0 0 ${slice.largeArc ? 0 : 1} ${
-                        slices[index - 1].x2
-                      } ${slices[index - 1].y2} Z`
-                    );
-
               return (
-                <g key={index}>
+                <g key={slice.name}>
                   <path
                     d={path}
                     fill={slice.color}
                     opacity={isHovered ? 1 : 0.85}
-                    className={`pie-slice ${isHovered ? 'hovered' : ''}`}
-                    style={{
-                      transition: animated ? 'opacity 0.2s ease' : 'none',
-                      cursor: 'pointer',
-                      filter: isHovered ? 'brightness(1.2)' : 'brightness(1)',
-                    }}
+                    className={`pie-slice${animated ? '' : ' pie-slice--static'}${isHovered ? ' pie-slice--hovered' : ''}`}
                     onMouseEnter={(e) =>
                       handleMouseEnter(index, slice.name, slice.percentage, e)
                     }
@@ -139,28 +128,21 @@ export default function PortfolioChart({
               slice.startAngle,
               slice.endAngle,
               innerRadius,
-              outerRadius
+              outerRadius,
             );
 
-            // Only show label if percentage >= 5%
-            if (slice.percentage < 5) return null;
+            // Small slices are still represented in the legend; hiding them here
+            // keeps the chart labels readable on narrow cards.
+            if (slice.percentage < MIN_VISIBLE_LABEL_PERCENTAGE) return null;
 
             return (
               <text
-                key={`label-${index}`}
+                key={`label-${slice.name}`}
                 x={labelPos.x}
                 y={labelPos.y}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                className="chart-label"
-                style={{
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  fill: 'var(--text-main)',
-                  pointerEvents: 'none',
-                  opacity: hoveredSlice?.index === index ? 1 : 0.8,
-                  transition: animated ? 'opacity 0.2s ease' : 'none',
-                }}
+                className={`chart-label${animated ? '' : ' chart-label--static'}${hoveredSlice?.index === index ? ' chart-label--active' : ''}`}
               >
                 {slice.percentage.toFixed(0)}%
               </text>
@@ -172,9 +154,9 @@ export default function PortfolioChart({
             <g>
               {/* Tooltip background */}
               <rect
-                x={tooltipPos.x - 55}
+                x={tooltipPos.x - 60}
                 y={tooltipPos.y - 40}
-                width="110"
+                width="120"
                 height="50"
                 rx="6"
                 fill="var(--bg-card)"
@@ -188,12 +170,7 @@ export default function PortfolioChart({
                 y={tooltipPos.y - 20}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                style={{
-                  fontSize: '11px',
-                  fill: 'var(--text-muted)',
-                  fontWeight: 500,
-                  pointerEvents: 'none',
-                }}
+                className="chart-tooltip-name"
               >
                 {hoveredSlice.name.split('(')[0].trim()}
               </text>
@@ -203,12 +180,7 @@ export default function PortfolioChart({
                 y={tooltipPos.y - 5}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                style={{
-                  fontSize: '14px',
-                  fill: 'var(--text-main)',
-                  fontWeight: 700,
-                  pointerEvents: 'none',
-                }}
+                className="chart-tooltip-value"
               >
                 {hoveredSlice.percentage.toFixed(1)}%
               </text>
@@ -229,8 +201,9 @@ export default function PortfolioChart({
       {showLegend && (
         <div className="chart-legend">
           {normalizedAllocations.map((allocation, index) => (
-            <div
-              key={index}
+            <button
+              key={allocation.name}
+              type="button"
               className="legend-item"
               onMouseEnter={() =>
                 setHoveredSlice({
@@ -239,17 +212,25 @@ export default function PortfolioChart({
                   percentage: allocation.percentage,
                 })
               }
+              onFocus={() =>
+                setHoveredSlice({
+                  index,
+                  name: allocation.name,
+                  percentage: allocation.percentage,
+                })
+              }
               onMouseLeave={() => setHoveredSlice(null)}
+              onBlur={() => setHoveredSlice(null)}
             >
               <div
                 className="legend-color"
-                style={{ backgroundColor: allocation.color }}
+                style={{ '--legend-color': allocation.color } as React.CSSProperties}
               />
               <div className="legend-text">
                 <div className="legend-name">{allocation.name}</div>
                 <div className="legend-percentage">{allocation.percentage}%</div>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       )}

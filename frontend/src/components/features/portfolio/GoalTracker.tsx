@@ -1,5 +1,5 @@
 import { Target } from "lucide-react";
-import { getStatusColor, type ProjectionResult } from "../../utils/goalProjection";
+import { getStatusColor, type ProjectionResult } from "../../../utils/goalProjection";
 
 export interface GoalTrackerProps {
   goalName: string;
@@ -58,8 +58,8 @@ export function GoalTracker({
     <div className="goal-section skeleton-fade-in">
       <div className="goal-header">
         <div>
-          <h3 style={{ fontSize: "1.25rem", marginBottom: "4px" }}>{goalName}</h3>
-          <p className="text-muted" style={{ fontSize: "0.9rem" }}>
+          <h3 className="goal-title">{goalName}</h3>
+          <p className="text-muted goal-subtitle">
             Target: {formatCurrency(targetAmount)} by {formatTargetDate(targetDate)}
           </p>
           <div className={`status-indicator ${getStatusClass(status)}`}>
@@ -81,15 +81,7 @@ export function GoalTracker({
         ></div>
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          fontSize: "0.85rem",
-          color: "var(--text-muted)",
-          fontWeight: 500,
-        }}
-      >
+      <div className="progress-stats">
         <span>{Math.round(clampedProgress)}% Completed</span>
         <span>{formatCurrency(remainingAmount)} Remaining</span>
       </div>

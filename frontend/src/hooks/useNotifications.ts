@@ -11,10 +11,14 @@ import {
   WS_MAX_RECONNECT_DELAY_MS,
 } from "../config/constants";
 import type { IncomingNotification, GoalPayload } from "../types/websocket";
-import toast from 'react-hot-toast';
 
 // Re-export so existing imports from this module continue to work.
 export type { IncomingNotification } from "../types/websocket";
+export type WebSocketConnectionStatus =
+  | "connecting"
+  | "connected"
+  | "reconnecting"
+  | "offline";
 
 interface UseNotificationsOptions {
   userId: string;
@@ -31,10 +35,36 @@ export function useNotifications(options: UseNotificationsOptions) {
   // Holds the latest connect function so ws.onclose can schedule a reconnect
   // without closing over a stale reference or creating a circular declaration.
   const connectRef = useRef<() => void>(() => undefined);
+  const shouldReconnectRef = useRef(true);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onNotificationRef = useRef(onNotification);
+  const onErrorRef = useRef(onError);
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] =
+    useState<WebSocketConnectionStatus>(enabled ? "connecting" : "offline");
+
+  useEffect(() => {
+    onNotificationRef.current = onNotification;
+    onErrorRef.current = onError;
+  }, [onNotification, onError]);
 
   const connect = useCallback(() => {
-    if (!enabled || !userId) return;
+    if (!enabled || !userId) {
+      setConnectionStatus("offline");
+      return;
+    }
+
+    if (
+      wsRef.current?.readyState === WebSocket.OPEN ||
+      wsRef.current?.readyState === WebSocket.CONNECTING
+    ) {
+      return;
+    }
+
+    shouldReconnectRef.current = true;
+    setConnectionStatus(
+      reconnectAttemptsRef.current > 0 ? "reconnecting" : "connecting",
+    );
 
     try {
       const wsUrl = `${WS_URL}?userId=${encodeURIComponent(userId)}`;
@@ -46,7 +76,7 @@ export function useNotifications(options: UseNotificationsOptions) {
         console.log("[WS] Connected");
         reconnectAttemptsRef.current = 0;
         setIsConnected(true);
-        toast.success('Connected to notification service');
+        setConnectionStatus("connected");
 
         // Send initial registration
         ws.send(
@@ -62,7 +92,7 @@ export function useNotifications(options: UseNotificationsOptions) {
           const data = JSON.parse(event.data) as IncomingNotification;
           console.log("[WS] Received:", data.type, data);
 
-          onNotification?.(data);
+          onNotificationRef.current?.(data);
         } catch (error) {
           console.error("[WS] Error parsing message:", error);
         }
@@ -71,15 +101,18 @@ export function useNotifications(options: UseNotificationsOptions) {
       ws.onerror = (event) => {
         const error = new Error("WebSocket error");
         console.error("[WS] Error:", error, event);
-        toast.error('Connection to notification service failed');
-        onError?.(error);
+        onErrorRef.current?.(error);
       };
 
       ws.onclose = () => {
         console.log("[WS] Disconnected");
         wsRef.current = null;
         setIsConnected(false);
-        toast.error('Disconnected from notification service');
+
+        if (!shouldReconnectRef.current) {
+          setConnectionStatus("offline");
+          return;
+        }
 
         // Attempt reconnection with exponential backoff
         if (reconnectAttemptsRef.current < maxReconnectAttempts) {
@@ -88,19 +121,28 @@ export function useNotifications(options: UseNotificationsOptions) {
             WS_MAX_RECONNECT_DELAY_MS,
           );
           reconnectAttemptsRef.current++;
+          setConnectionStatus("reconnecting");
           console.log(
             `[WS] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current})`,
           );
-          setTimeout(() => connectRef.current(), delay);
+          reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectTimeoutRef.current = null;
+            if (shouldReconnectRef.current) {
+              connectRef.current();
+            }
+          }, delay);
+        } else {
+          setConnectionStatus("offline");
         }
       };
 
       wsRef.current = ws;
     } catch (error) {
       console.error("[WS] Connection error:", error);
-      onError?.(error instanceof Error ? error : new Error(String(error)));
+      setConnectionStatus("offline");
+      onErrorRef.current?.(error instanceof Error ? error : new Error(String(error)));
     }
-  }, [userId, onNotification, onError, enabled, maxReconnectAttempts]);
+  }, [userId, enabled, maxReconnectAttempts]);
 
   // Keep the ref in sync so onclose always calls the latest version.
   useEffect(() => {
@@ -108,10 +150,17 @@ export function useNotifications(options: UseNotificationsOptions) {
   }, [connect]);
 
   const disconnect = useCallback(() => {
+    shouldReconnectRef.current = false;
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
     }
+    setIsConnected(false);
+    setConnectionStatus("offline");
   }, []);
 
   const sendMessage = useCallback((message: Record<string, unknown>) => {
@@ -143,12 +192,16 @@ export function useNotifications(options: UseNotificationsOptions) {
   );
 
   useEffect(() => {
-    connect();
-    return () => disconnect();
+    const connectTimer = setTimeout(() => connect(), 0);
+    return () => {
+      clearTimeout(connectTimer);
+      disconnect();
+    };
   }, [connect, disconnect]);
 
   return {
     isConnected,
+    connectionStatus,
     sendMessage,
     registerGoal,
     updateGoal,

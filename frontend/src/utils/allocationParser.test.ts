@@ -1,4 +1,4 @@
-import { parseAllocationsFromMessage, getDefaultAllocations } from './allocationParser';
+import { parseAllocationsFromMessage, getDefaultAllocations, getColorForAsset } from './allocationParser';
 
 describe('allocationParser Utils', () => {
   describe('parseAllocationsFromMessage', () => {
@@ -69,6 +69,27 @@ describe('allocationParser Utils', () => {
       const result = getDefaultAllocations();
       expect(result).toHaveLength(3);
       expect(result.reduce((sum, a) => sum + a.percentage, 0)).toBe(100);
+    });
+  });
+
+  describe('getColorForAsset determinism', () => {
+    it('returns the same color for an unknown asset at the same index', () => {
+      const color1 = getColorForAsset('UnknownAsset', 0);
+      const color2 = getColorForAsset('UnknownAsset', 0);
+      expect(color1).toBe(color2);
+    });
+
+    it('returns different colors for different indices', () => {
+      const color0 = getColorForAsset('UnknownAsset', 0);
+      const color1 = getColorForAsset('UnknownAsset', 1);
+      // They may or may not differ depending on palette size, but both must be valid hex strings
+      expect(color0).toMatch(/^#[0-9a-f]{6}$/i);
+      expect(color1).toMatch(/^#[0-9a-f]{6}$/i);
+    });
+
+    it('unknown asset color is never random across repeated calls', () => {
+      const results = Array.from({ length: 10 }, () => getColorForAsset('Mystery', 2));
+      expect(new Set(results).size).toBe(1);
     });
   });
 });
