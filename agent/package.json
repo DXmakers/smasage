@@ -15,7 +15,7 @@
   "dependencies": {
     "openclaw": "^2026.5.28",
     "dotenv": "^17.4.2",
-    "ws": "^8.19.0"
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@stellar/stellar-sdk": "^15.1.0",
