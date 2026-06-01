@@ -1,18 +1,20 @@
 'use client';
 
 import React from 'react';
-import { Wallet, TrendingUp } from 'lucide-react';
+import { MetricTile, StatusPill } from '../../primitives';
 
 export interface PortfolioStatsProps {
   totalValue: number;
   apy: number;
   valueChange: number;
+  loading?: boolean;
 }
 
 export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
   totalValue,
   apy,
   valueChange,
+  loading = false,
 }) => {
   const formattedValue = new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -22,29 +24,25 @@ export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
   }).format(totalValue);
 
   const changeLabel = `${valueChange >= 0 ? '+' : ''}${valueChange.toFixed(1)}%`;
+  const trend = valueChange > 0 ? 'up' : valueChange < 0 ? 'down' : 'flat';
 
   return (
     <div className="stats-grid">
-      <div className="stat-card">
-        <div className="stat-label">
-          <Wallet size={16} color="var(--accent-primary)" />
-          Total Value
-        </div>
-        <div className="stat-value">
-          {formattedValue}
-          <span className="stat-sub">{changeLabel}</span>
-        </div>
-      </div>
-
+      <MetricTile
+        label="Total Value"
+        value={formattedValue}
+        trend={trend}
+        trendLabel={changeLabel}
+        loading={loading}
+        className="stat-card"
+      />
       <div className="stat-card secondary">
-        <div className="stat-label">
-          <TrendingUp size={16} color="var(--accent-secondary)" />
-          Est. Monthly APY
-        </div>
-        <div className="stat-value">
-          {apy.toFixed(1)}%
-          <span className="stat-sub">Active</span>
-        </div>
+        <MetricTile
+          label="Est. Monthly APY"
+          value={`${apy.toFixed(1)}%`}
+          loading={loading}
+        />
+        <StatusPill variant="success" label="Active" className="mt-1" />
       </div>
     </div>
   );

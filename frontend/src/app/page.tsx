@@ -23,6 +23,8 @@ import type { WalletConnectionStatus } from "../components/features/wallet/Conne
 import { ConnectWalletButton } from "../components/features/wallet/ConnectWalletButton";
 import { useFreighter } from "../hooks/useFreighter";
 import { ErrorBoundary } from "../components/feedback/ErrorBoundary";
+import { EmptyState } from "../components/feedback/EmptyState";
+import { ErrorState } from "../components/feedback/ErrorState";
 import {
   PortfolioStatsSkeleton,
   GoalTrackerSkeleton,
@@ -34,7 +36,7 @@ import { goalData, initialMessages } from "../config/mockData";
 import toast from 'react-hot-toast';
 import { GoalTracker } from "../components/features/portfolio/GoalTracker";
 import { GlassPanel } from "../components/layout/GlassPanel";
-import { Card } from "../components/primitives";
+import { Card, MotionCard } from "../components/primitives";
 import { Drawer } from "../components/features/wallet/Drawer";
 import { Network, Cpu, ShieldCheck, Zap } from "lucide-react";
 
@@ -84,6 +86,7 @@ export default function Home() {
   );
 
   const [isLoading, setIsLoading] = useState(true);
+  const [chartError, setChartError] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const walletStatus = useMemo<WalletConnectionStatus>(() => {
@@ -366,13 +369,24 @@ export default function Home() {
             )}
 
             <motion.div variants={itemVariants}>
-              <Card className="allocation-list" aria-labelledby="allocation-title">
+              <MotionCard className="allocation-list" aria-labelledby="allocation-title">
                 <h3 id="allocation-title" className="allocation-title">
                 <Activity size={18} aria-hidden="true" /> Active Strategy Routes
               </h3>
 
               {isLoading ? (
                 <PortfolioChartSkeleton />
+              ) : chartError ? (
+                <ErrorState
+                  title="Chart unavailable"
+                  message="Strategy allocation data failed to load."
+                  onRetry={() => setChartError(false)}
+                />
+              ) : allocations.length === 0 ? (
+                <EmptyState
+                  title="No allocations yet"
+                  message="Connect your wallet or ask the agent to build a strategy."
+                />
               ) : (
                 <div className="skeleton-fade-in">
                   <PortfolioChart
@@ -382,18 +396,25 @@ export default function Home() {
                   />
                 </div>
               )}
-              </Card>
+              </MotionCard>
             </motion.div>
           </GlassPanel>
 
           {/* Right Panel - Chat Agent */}
           <GlassPanel className="dashboard-chat" variants={itemVariants}>
-            <ChatInterface
-              messages={messages}
-              isTyping={isTyping}
-              onSendMessage={handleSendMessage}
-              isConnected={wsConnected}
-            />
+            {messages.length === 0 && !isTyping ? (
+              <EmptyState
+                title="No messages yet"
+                message="Ask Smasage to help manage your portfolio or set a goal."
+              />
+            ) : (
+              <ChatInterface
+                messages={messages}
+                isTyping={isTyping}
+                onSendMessage={handleSendMessage}
+                isConnected={wsConnected}
+              />
+            )}
           </GlassPanel>
         </motion.main>
       </>
