@@ -1,31 +1,51 @@
 import React from 'react';
-import { WsStatusIndicator } from './WsStatusIndicator';
+import { Settings } from 'lucide-react';
+import {
+  ConnectivityWidget,
+  type WalletConnectionStatus,
+} from './ConnectivityWidget';
+import type { WebSocketConnectionStatus } from '../../hooks/useNotifications';
 
 interface DashboardHeaderProps {
   children?: React.ReactNode;
-  wsConnected?: boolean;
+  webSocketStatus?: WebSocketConnectionStatus;
+  walletStatus?: WalletConnectionStatus;
+  publicKey?: string | null;
+  onOpenSettings?: () => void;
 }
 
-export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ children, wsConnected = false }) => (
+export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
+  children,
+  webSocketStatus = 'connecting',
+  walletStatus = 'disconnected',
+  publicKey,
+  onOpenSettings
+}) => (
   <header className="dashboard-header" aria-label="Smasage application header">
     <div className="header-content">
       <div className="logo-section">
         <div className="brand">
           <span className="brand-name" aria-label="Smasage">Smasage</span>
-          <div
-            className="status-pill"
-            role="status"
-            aria-label={wsConnected ? 'Connection status: Live' : 'Connection status: Connecting'}
-          >
-            <WsStatusIndicator connected={wsConnected} />
-            <span className={`status-text ${wsConnected ? 'live' : 'connecting'}`} aria-hidden="true">
-              {wsConnected ? 'Live' : 'Connecting'}
-            </span>
-          </div>
+          <ConnectivityWidget
+            webSocketStatus={webSocketStatus}
+            walletStatus={walletStatus}
+            publicKey={publicKey}
+          />
         </div>
       </div>
-      <div className="header-actions">{children}</div>
+      <div className="header-actions">
+        {children}
+        {onOpenSettings && (
+          <button
+            className="btn btn-secondary btn-icon"
+            onClick={onOpenSettings}
+            aria-label="Open technical settings"
+            style={{ padding: '0.72rem', marginLeft: '0.75rem' }}
+          >
+            <Settings size={20} />
+          </button>
+        )}
+      </div>
     </div>
   </header>
 );
-

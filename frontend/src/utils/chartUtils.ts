@@ -124,7 +124,7 @@ export function calculateLabelPosition(
   outerRadius: number
 ): { x: number; y: number; angle: number } {
   const midAngle = (startAngle + endAngle) / 2;
-  const labelRadius = outerRadius + 30;
+  const labelRadius = radius + (outerRadius - radius) * 0.6;
 
   return {
     x: cx + labelRadius * Math.cos(midAngle - Math.PI / 2),

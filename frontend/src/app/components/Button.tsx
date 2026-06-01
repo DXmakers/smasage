@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, JSX } from "react";
-import { motion } from "framer-motion";
+import { motion, type HTMLMotionProps } from "framer-motion";
 
 export type ButtonVariant = "primary" | "secondary";
 
@@ -20,6 +20,15 @@ export function Button({
 }: ButtonProps): JSX.Element {
   const classes = ["btn", `btn-${variant}`, className].filter(Boolean).join(" ");
 
+  // Omit motion-conflicting props from rest to avoid type mismatches with motion.button
+  // We filter out props that have different signatures in motion.button than in standard button
+  const motionProps: Record<string, unknown> = { ...rest } as unknown as Record<string, unknown>;
+  delete motionProps.onAnimationStart;
+  delete motionProps.onDrag;
+  delete motionProps.onDragEnd;
+  delete motionProps.onDragStart;
+  delete motionProps.style;
+
   return (
     <motion.button
       className={classes}
@@ -29,7 +38,7 @@ export function Button({
       whileHover={!disabled && !isLoading ? { scale: 1.02 } : undefined}
       whileTap={!disabled && !isLoading ? { scale: 0.98 } : undefined}
       transition={{ duration: 0.15, ease: "easeInOut" }}
-      {...rest}
+      {...(motionProps as HTMLMotionProps<"button">)}
     >
       <motion.span
         className="btn-content"

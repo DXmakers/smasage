@@ -10,6 +10,7 @@ export function useFreighter() {
   const { publicKey, setPublicKey, isConnecting, setIsConnecting } =
     useWallet();
   const [isInstalled, setIsInstalled] = useState<boolean>(false);
+  const [isCheckingInstallation, setIsCheckingInstallation] = useState<boolean>(true);
   const [showInstallModal, setShowInstallModal] = useState(false);
 
   // Check for Freighter on mount and with polling
@@ -17,6 +18,7 @@ export function useFreighter() {
     // Initial check
     if (window.freighterApi) {
       setIsInstalled(true);
+      setIsCheckingInstallation(false);
       return;
     }
 
@@ -26,9 +28,10 @@ export function useFreighter() {
       attempts++;
       if (window.freighterApi) {
         setIsInstalled(true);
+        setIsCheckingInstallation(false);
         clearInterval(interval);
-      } else if (attempts >= 20) {
-        // 6 * 500ms = 3s
+      } else if (attempts >= 6) {
+        setIsCheckingInstallation(false);
         clearInterval(interval);
       }
     }, 500);
@@ -75,7 +78,6 @@ export function useFreighter() {
    */
   const disconnect = useCallback(() => {
     setPublicKey(null);
-    toast('Wallet disconnected');
   }, [setPublicKey]);
 
   return {
@@ -83,6 +85,7 @@ export function useFreighter() {
     isConnected: !!publicKey,
     isConnecting,
     isInstalled,
+    isCheckingInstallation,
     showInstallModal,
     setShowInstallModal,
     connect,
