@@ -55,7 +55,7 @@ export function GoalTracker({
   const clampedProgress = Math.max(0, Math.min(100, progressPercentage));
 
   return (
-    <div className="goal-section skeleton-fade-in">
+    <div className="goal-section">
       <div className="goal-header">
         <div>
           <h3 className="goal-title">{goalName}</h3>

@@ -789,10 +789,10 @@ body {
   }
 
   .skeleton-bone--chart-donut {
-    width: min(100%, 240px);
-    height: min(100vw, 240px);
-    max-width: 240px;
-    max-height: 240px;
+    width: min(100%, 260px);
+    height: min(100vw, 260px);
+    max-width: 260px;
+    max-height: 260px;
   }
 
   .legend-item {
@@ -1702,9 +1702,20 @@ h2 {
 }
 
 /* ── Skeleton loaders ────────────────────────────────────────── */
+/*
+ * Design rules:
+ * - Bones sit on top of the same card backgrounds as real content
+ *   (stat-card: rgba(255,255,255,0.03), goal-section: rgba(255,255,255,0.02))
+ *   so the bone fill must be brighter than the card to be visible.
+ * - Shimmer peak matches the MetricTile inline skeleton for consistency.
+ * - border-radius per bone type: text lines → 4px, pill/progress → 999px,
+ *   circular → 50%, swatch/icon → 4–8px, card-level → matches real card.
+ * - Dimensions are locked to the real component measurements to prevent
+ *   layout shift on swap.
+ */
 .skeleton-bone {
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 4px;
   position: relative;
   overflow: hidden;
 }
@@ -1713,13 +1724,18 @@ h2 {
   margin-bottom: 2.5rem;
 }
 
+/* Stat card skeleton — matches .stat-card padding so bones don't sit flush */
 .skeleton-stat-card {
-  gap: 0;
+  gap: 0.5rem;
+  padding: 1.5rem;
 }
 
 .skeleton-goal-copy {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
 .skeleton-progress-row {
@@ -1740,36 +1756,56 @@ h2 {
 .skeleton-legend-text {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
 }
 
+/* ── Bone dimensions — locked to real component measurements ── */
+
+/* stat-label: matches .metric-tile__label font-size ~0.75rem → ~12px rendered */
 .skeleton-bone--stat-label {
-  width: 60%;
-  height: 14px;
-  margin-bottom: 12px;
+  width: 55%;
+  height: 12px;
+  border-radius: 4px;
 }
 
+/* stat-value: matches .metric-tile__value font-size 1.4rem → ~22px rendered */
 .skeleton-bone--stat-value {
-  width: 80%;
-  height: 36px;
+  width: 75%;
+  height: 22px;
+  border-radius: 4px;
 }
 
+/* stat-trend: matches .metric-tile__trend font-size 0.72rem → ~11px */
+.skeleton-bone--stat-trend {
+  width: 35%;
+  height: 11px;
+  border-radius: 4px;
+}
+
+/* goal-title: matches .goal-title font-size 1.25rem → ~20px */
 .skeleton-bone--goal-title {
   width: 55%;
-  height: 18px;
-  margin-bottom: 8px;
+  height: 20px;
+  border-radius: 4px;
 }
 
+/* goal-line: matches .text-muted .goal-subtitle font-size 0.9rem → ~14px */
 .skeleton-bone--goal-line {
   width: 70%;
-  height: 13px;
-  margin-bottom: 6px;
+  height: 14px;
+  border-radius: 4px;
 }
 
+/* goal-line-short: status indicator ~14px tall */
 .skeleton-bone--goal-line-short {
   width: 40%;
-  height: 13px;
+  height: 14px;
+  border-radius: 4px;
 }
 
+/* goal-icon: matches Target size={32} */
 .skeleton-bone--goal-icon {
   width: 32px;
   height: 32px;
@@ -1777,6 +1813,7 @@ h2 {
   flex-shrink: 0;
 }
 
+/* progress bar: matches .progress-bar-container height 12px, border-radius 999px */
 .skeleton-bone--progress {
   width: 100%;
   height: 12px;
@@ -1784,20 +1821,25 @@ h2 {
   margin: 1rem 0;
 }
 
+/* progress stats: matches .progress-stats font-size 0.85rem → ~13px */
 .skeleton-bone--progress-stat {
   width: 30%;
   height: 13px;
+  border-radius: 4px;
 }
 
+/* chart donut: matches PortfolioChart default width/height={320} minus 18px padding
+   outerRadius = 320/2 - 18 = 142 → full SVG viewBox is 320×320 */
 .skeleton-bone--chart-donut {
-  width: min(100%, 280px);
-  height: min(100%, 280px);
-  max-width: 280px;
-  max-height: 280px;
+  width: min(100%, 320px);
+  height: min(100%, 320px);
+  max-width: 320px;
+  max-height: 320px;
   border-radius: 50%;
   margin: 0 auto;
 }
 
+/* legend swatch: matches .legend-color 16×16 */
 .skeleton-bone--legend-swatch {
   width: 16px;
   height: 16px;
@@ -1805,24 +1847,28 @@ h2 {
   flex-shrink: 0;
 }
 
+/* legend name: matches .legend-name font-size 0.9rem → ~14px */
 .skeleton-bone--legend-name {
   width: 60%;
-  height: 13px;
-  margin-bottom: 6px;
+  height: 14px;
+  border-radius: 4px;
 }
 
+/* legend percentage: matches .legend-percentage font-size 0.8rem → ~12px */
 .skeleton-bone--legend-pct {
   width: 30%;
-  height: 11px;
+  height: 12px;
+  border-radius: 4px;
 }
 
+/* ── Shimmer sweep ── */
 .skeleton-shimmer {
   position: absolute;
   inset: 0;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.1) 50%,
     transparent 100%
   );
   animation: skeleton-sweep 1.6s infinite linear;
@@ -2334,16 +2380,16 @@ h2 {
 .metric-tile__trend--flat { color: var(--text-muted, #888); }
 .metric-tile__trend-label { font-family: 'JetBrains Mono', monospace; }
 
-/* Loading skeleton for MetricTile */
+/* Loading skeleton for MetricTile — uses same bone brightness as SkeletonLoader */
 .metric-tile--loading .metric-tile__label-skeleton,
 .metric-tile--loading .metric-tile__value-skeleton {
   border-radius: 4px;
-  background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%);
+  background: linear-gradient(90deg, rgba(255,255,255,0.07) 25%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.07) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.6s ease-in-out infinite;
 }
-.metric-tile--loading .metric-tile__label-skeleton { height: 0.75rem; width: 60%; margin-bottom: 0.25rem; }
-.metric-tile--loading .metric-tile__value-skeleton { height: 1.6rem; width: 80%; }
+.metric-tile--loading .metric-tile__label-skeleton { height: 0.75rem; width: 55%; margin-bottom: 0.25rem; }
+.metric-tile--loading .metric-tile__value-skeleton { height: 1.4rem; width: 75%; }
 
 /* ── EmptyState (#105) ──────────────────────────────────────────── */
 .empty-state {

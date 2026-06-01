@@ -337,7 +337,7 @@ export default function Home() {
                 <GoalTrackerSkeleton />
               </motion.div>
             ) : (
-              <motion.div variants={itemVariants}>
+              <motion.div className="skeleton-fade-in" variants={itemVariants}>
                 <GoalTracker
                   goalName="European Vacation"
                   targetAmount={goalData.targetAmount}
