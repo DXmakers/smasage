@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, JSX } from "react";
+import { motion } from "framer-motion";
 
 export type ButtonVariant = "primary" | "secondary";
 
@@ -20,17 +21,39 @@ export function Button({
   const classes = ["btn", `btn-${variant}`, className].filter(Boolean).join(" ");
 
   return (
-    <button
+    <motion.button
       className={classes}
       disabled={disabled || isLoading}
       aria-busy={isLoading || undefined}
       aria-label={isLoading ? loadingLabel : rest["aria-label"]}
+      whileHover={!disabled && !isLoading ? { scale: 1.02 } : undefined}
+      whileTap={!disabled && !isLoading ? { scale: 0.98 } : undefined}
+      transition={{ duration: 0.15, ease: "easeInOut" }}
       {...rest}
     >
-      <span className={`btn-content ${isLoading ? "is-hidden" : ""}`}>{children}</span>
+      <motion.span
+        className="btn-content"
+        animate={{ opacity: isLoading ? 0 : 1 }}
+        transition={{ duration: 0.2 }}
+      >
+        {children}
+      </motion.span>
       {isLoading ? (
-        <span className="btn-loader-wrap" aria-hidden="true">
-          <svg className="btn-loader" viewBox="0 0 24 24" fill="none" focusable="false">
+        <motion.span
+          className="btn-loader-wrap"
+          aria-hidden="true"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.2 }}
+        >
+          <motion.svg
+            className="btn-loader"
+            viewBox="0 0 24 24"
+            fill="none"
+            focusable="false"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+          >
             <circle
               cx="12"
               cy="12"
@@ -41,9 +64,9 @@ export function Button({
               strokeDasharray="56.5"
               strokeDashoffset="18"
             />
-          </svg>
-        </span>
+          </motion.svg>
+        </motion.span>
       ) : null}
-    </button>
+    </motion.button>
   );
 }

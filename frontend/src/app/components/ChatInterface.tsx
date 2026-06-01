@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { AlertCircle, Bot, CheckCircle2, Send } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export interface ChatMessage {
   id: number;
@@ -18,6 +19,12 @@ export interface ChatInterfaceProps {
   placeholder?: string;
   isConnected?: boolean;
 }
+
+const messageVariants = {
+  initial: { opacity: 0, y: 20, scale: 0.95 },
+  animate: { opacity: 1, y: 0, scale: 1 },
+  exit: { opacity: 0, scale: 0.95 }
+};
 
 export function ChatInterface({
   messages,
@@ -45,12 +52,17 @@ export function ChatInterface({
   return (
     <div className="chat-container">
       <div className="chat-header">
-        <div className="agent-avatar" aria-hidden="true">
+        <motion.div
+          className="agent-avatar"
+          aria-hidden="true"
+          whileHover={{ scale: 1.05 }}
+          transition={{ duration: 0.2 }}
+        >
           <Bot size={28} />
-        </div>
+        </motion.div>
         <div>
           <h2 style={{ margin: 0, fontSize: "1.25rem" }}>OpenClaw Agent</h2>
-          <div
+          <motion.div
             style={{
               display: "flex",
               alignItems: "center",
@@ -58,6 +70,9 @@ export function ChatInterface({
               fontSize: "0.85rem",
               color: isConnected ? "var(--success)" : "var(--text-muted)",
             }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
           >
             {isConnected ? (
               <CheckCircle2
@@ -70,7 +85,7 @@ export function ChatInterface({
               <AlertCircle size={12} aria-hidden="true" />
             )}{" "}
             {isConnected ? "Online" : "Offline"}
-          </div>
+          </motion.div>
         </div>
       </div>
 
@@ -81,54 +96,87 @@ export function ChatInterface({
         aria-live="polite"
         aria-relevant="additions"
       >
-        {messages.map((msg) => (
-          <div key={msg.id} className={`message ${msg.sender}`}>
-            {msg.proactive && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  fontSize: "0.75rem",
-                  color: "var(--accent-primary)",
-                  marginBottom: "4px",
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                }}
-              >
-                <AlertCircle size={12} aria-hidden="true" /> Proactive Nudge
-              </div>
-            )}
-            <div className="message-bubble">{msg.text}</div>
-          </div>
-        ))}
+        <AnimatePresence mode="popLayout">
+          {messages.map((msg, index) => (
+            <motion.div
+              key={msg.id}
+              className={`message ${msg.sender}`}
+              variants={messageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{
+                duration: 0.3,
+                delay: index * 0.05,
+                ease: [0.4, 0, 0.2, 1]
+              }}
+            >
+              {msg.proactive && (
+                <motion.div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "0.75rem",
+                    color: "var(--accent-primary)",
+                    marginBottom: "4px",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                  }}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  <AlertCircle size={12} aria-hidden="true" /> Proactive Nudge
+                </motion.div>
+              )}
+              <div className="message-bubble">{msg.text}</div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
 
         {isTyping && (
-          <div className="message agent" role="status">
+          <motion.div
+            className="message agent"
+            role="status"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
             <span className="sr-only">Agent is typing...</span>
             <div className="typing-indicator" aria-hidden="true">
               <span></span>
               <span></span>
               <span></span>
             </div>
-          </div>
+          </motion.div>
         )}
 
         <div ref={messagesEndRef} />
       </div>
 
       <form onSubmit={handleSubmit} className="chat-input-container">
-        <input
+        <motion.input
           id="chat-input"
           type="text"
           placeholder={placeholder}
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           aria-label="Message input"
+          whileFocus={{ scale: 1.01 }}
+          transition={{ duration: 0.2 }}
         />
-        <button type="submit" className="send-button" aria-label="Send message">
+        <motion.button
+          type="submit"
+          className="send-button"
+          aria-label="Send message"
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+          transition={{ duration: 0.15 }}
+        >
           <Send size={18} aria-hidden="true" />
-        </button>
+        </motion.button>
       </form>
     </div>
   );
