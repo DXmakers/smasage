@@ -189,7 +189,7 @@ export default function Home() {
         />
         <main className="app-container" aria-label="Portfolio dashboard">
           {/* Left Panel - Dashboard */}
-          <GlassPanel>
+          <GlassPanel className="dashboard-portfolio">
             <h1>Smasage Portfolio</h1>
             <p className="text-muted portfolio-subtitle">
               Real-time on-chain tracking • Stellar Mainnet 🚀
@@ -242,7 +242,7 @@ export default function Home() {
           </GlassPanel>
 
           {/* Right Panel - Chat Agent */}
-          <GlassPanel>
+          <GlassPanel className="dashboard-chat">
             <ChatInterface
               messages={messages}
               isTyping={isTyping}

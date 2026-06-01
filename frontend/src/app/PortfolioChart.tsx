@@ -98,12 +98,7 @@ export default function PortfolioChart({
                     d={path}
                     fill={slice.color}
                     opacity={isHovered ? 1 : 0.85}
-                    className={`pie-slice ${isHovered ? 'hovered' : ''}`}
-                    style={{
-                      transition: animated ? 'opacity 0.2s ease' : 'none',
-                      cursor: 'pointer',
-                      filter: isHovered ? 'brightness(1.2)' : 'brightness(1)',
-                    }}
+                    className={`pie-slice${animated ? '' : ' pie-slice--static'}${isHovered ? ' pie-slice--hovered' : ''}`}
                     onMouseEnter={(e) =>
                       handleMouseEnter(index, slice.name, slice.percentage, e)
                     }
@@ -135,15 +130,7 @@ export default function PortfolioChart({
                 y={labelPos.y}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                className="chart-label"
-                style={{
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  fill: 'var(--text-main)',
-                  pointerEvents: 'none',
-                  opacity: hoveredSlice?.index === index ? 1 : 0.8,
-                  transition: animated ? 'opacity 0.2s ease' : 'none',
-                }}
+                className={`chart-label${animated ? '' : ' chart-label--static'}${hoveredSlice?.index === index ? ' chart-label--active' : ''}`}
               >
                 {slice.percentage.toFixed(0)}%
               </text>
@@ -171,12 +158,7 @@ export default function PortfolioChart({
                 y={tooltipPos.y - 20}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                style={{
-                  fontSize: '11px',
-                  fill: 'var(--text-muted)',
-                  fontWeight: 500,
-                  pointerEvents: 'none',
-                }}
+                className="chart-tooltip-name"
               >
                 {hoveredSlice.name.split('(')[0].trim()}
               </text>
@@ -186,12 +168,7 @@ export default function PortfolioChart({
                 y={tooltipPos.y - 5}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                style={{
-                  fontSize: '14px',
-                  fill: 'var(--text-main)',
-                  fontWeight: 700,
-                  pointerEvents: 'none',
-                }}
+                className="chart-tooltip-value"
               >
                 {hoveredSlice.percentage.toFixed(1)}%
               </text>
@@ -226,7 +203,7 @@ export default function PortfolioChart({
             >
               <div
                 className="legend-color"
-                style={{ backgroundColor: allocation.color }}
+                style={{ '--legend-color': allocation.color } as React.CSSProperties}
               />
               <div className="legend-text">
                 <div className="legend-name">{allocation.name}</div>

@@ -61,15 +61,9 @@ export function ChatInterface({
           <Bot size={28} />
         </motion.div>
         <div>
-          <h2 style={{ margin: 0, fontSize: "1.25rem" }}>OpenClaw Agent</h2>
+          <h2 className="chat-title">OpenClaw Agent</h2>
           <motion.div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              fontSize: "0.85rem",
-              color: isConnected ? "var(--success)" : "var(--text-muted)",
-            }}
+            className={`chat-status${isConnected ? "" : " chat-status--offline"}`}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
@@ -113,16 +107,7 @@ export function ChatInterface({
             >
               {msg.proactive && (
                 <motion.div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    fontSize: "0.75rem",
-                    color: "var(--accent-primary)",
-                    marginBottom: "4px",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                  }}
+                  className="proactive-label"
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.2 }}
