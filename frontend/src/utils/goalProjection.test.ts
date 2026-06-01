@@ -17,6 +17,18 @@ describe('goalProjection Utils', () => {
       // Total: 2361.27
       expect(result).toBeCloseTo(2361.27, 0);
     });
+
+    it('handles zero APY without NaN or Infinity', () => {
+      const result = calculateProjection(1000, 0, 1, 100);
+      expect(Number.isFinite(result)).toBe(true);
+      // 1000 principal + 100 * 12 * 1 contributions = 2200
+      expect(result).toBeCloseTo(2200, 0);
+    });
+
+    it('handles zero APY with no contributions', () => {
+      const result = calculateProjection(5000, 0, 2, 0);
+      expect(result).toBeCloseTo(5000, 0);
+    });
   });
 
   describe('getMonthsUntil', () => {

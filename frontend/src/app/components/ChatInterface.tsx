@@ -16,6 +16,7 @@ export interface ChatInterfaceProps {
   isTyping: boolean;
   onSendMessage: (message: string) => void;
   placeholder?: string;
+  isConnected?: boolean;
 }
 
 export function ChatInterface({
@@ -23,6 +24,7 @@ export function ChatInterface({
   isTyping,
   onSendMessage,
   placeholder = "Ask Smasage to adjust goals...",
+  isConnected = false,
 }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -54,16 +56,20 @@ export function ChatInterface({
               alignItems: "center",
               gap: "6px",
               fontSize: "0.85rem",
-              color: "var(--success)",
+              color: isConnected ? "var(--success)" : "var(--text-muted)",
             }}
           >
-            <CheckCircle2
-              size={12}
-              fill="var(--success)"
-              color="var(--bg-card)"
-              aria-hidden="true"
-            />{" "}
-            Online
+            {isConnected ? (
+              <CheckCircle2
+                size={12}
+                fill="var(--success)"
+                color="var(--bg-card)"
+                aria-hidden="true"
+              />
+            ) : (
+              <AlertCircle size={12} aria-hidden="true" />
+            )}{" "}
+            {isConnected ? "Online" : "Offline"}
           </div>
         </div>
       </div>
