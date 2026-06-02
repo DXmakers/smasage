@@ -36,19 +36,14 @@ import { goalData, initialMessages } from "../config/mockData";
 import toast from 'react-hot-toast';
 import { GoalTracker } from "../components/features/portfolio/GoalTracker";
 import { GlassPanel } from "../components/layout/GlassPanel";
-import { Card, MotionCard } from "../components/primitives";
+import { MotionCard } from "../components/primitives";
 import { Drawer } from "../components/features/wallet/Drawer";
 import { Network, Cpu, ShieldCheck, Zap } from "lucide-react";
-
-import { motion, useReducedMotion } from "framer-motion";
-import { makeContainerVariants, makeEntranceVariants } from "../lib/motion";
+import { WsStatusIndicator } from "../components/layout/WsStatusIndicator";
+import { DashboardLayout } from "../components/layout/DashboardLayout";
+import { BentoDashboard } from "../components/features/dashboard";
 
 export default function Home() {
-  const prefersReduced = useReducedMotion();
-
-  const containerVariants = makeContainerVariants(!!prefersReduced);
-  const itemVariants = makeEntranceVariants(!!prefersReduced);
-
   const {
     publicKey,
     connect,
@@ -205,200 +200,217 @@ export default function Home() {
     }, 1800);
   };
 
+  const metricsSlot = isLoading ? (
+    <PortfolioStatsSkeleton />
+  ) : (
+    <div className="skeleton-fade-in">
+      <PortfolioStats
+        totalValue={goalData.currentBalance}
+        apy={goalData.expectedAPY}
+        valueChange={12.4}
+      />
+    </div>
+  );
+
+  const goalSlot = isLoading ? (
+    <GoalTrackerSkeleton />
+  ) : (
+    <GoalTracker
+      goalName="European Vacation"
+      targetAmount={goalData.targetAmount}
+      targetDate={goalData.targetDate}
+      status={goalStatus}
+      progressPercentage={progress}
+      remainingAmount={goalData.targetAmount - goalData.currentBalance}
+    />
+  );
+
+  const chartSlot = (
+    <MotionCard className="allocation-list" aria-labelledby="allocation-title">
+      <h3 id="allocation-title" className="allocation-title">
+        <Activity size={18} aria-hidden="true" /> Active Strategy Routes
+      </h3>
+      {isLoading ? (
+        <PortfolioChartSkeleton />
+      ) : chartError ? (
+        <ErrorState
+          title="Chart unavailable"
+          message="Strategy allocation data failed to load."
+          onRetry={() => setChartError(false)}
+        />
+      ) : allocations.length === 0 ? (
+        <EmptyState
+          title="No allocations yet"
+          message="Connect your wallet or ask the agent to build a strategy."
+        />
+      ) : (
+        <div className="skeleton-fade-in">
+          <PortfolioChart
+            allocations={allocations}
+            showLegend={true}
+            animated={true}
+          />
+        </div>
+      )}
+    </MotionCard>
+  );
+
+  const walletSlot = (
+    <GlassPanel className="bento-card">
+      <ConnectWalletButton
+        onClick={connect}
+        publicKey={publicKey || undefined}
+        isConnecting={isConnecting}
+      />
+      {publicKey && (
+        <p className="text-muted" style={{ fontSize: 'var(--text-xs)', marginTop: '0.5rem', wordBreak: 'break-all' }}>
+          {publicKey.slice(0, 8)}…{publicKey.slice(-4)}
+        </p>
+      )}
+    </GlassPanel>
+  );
+
+  const statusSlot = (
+    <GlassPanel className="bento-card">
+      <p className="text-muted" style={{ fontSize: 'var(--text-xs)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        Network
+      </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <WsStatusIndicator connected={wsConnected} />
+        <span style={{ fontSize: 'var(--text-sm)', color: wsConnected ? 'var(--success)' : 'var(--text-muted)' }}>
+          {wsConnected ? 'Connected' : 'Connecting…'}
+        </span>
+      </div>
+    </GlassPanel>
+  );
+
+  const agentSlot = messages.length === 0 && !isTyping ? (
+    <GlassPanel style={{ height: '100%' }}>
+      <EmptyState
+        title="No messages yet"
+        message="Ask Smasage to help manage your portfolio or set a goal."
+      />
+    </GlassPanel>
+  ) : (
+    <ChatInterface
+      messages={messages}
+      isTyping={isTyping}
+      onSendMessage={handleSendMessage}
+      isConnected={wsConnected}
+    />
+  );
+
   return (
     <ErrorBoundary fallbackMessage="The dashboard failed to load. Please try again.">
-      <>
-        <DashboardHeader
-          webSocketStatus={webSocketStatus}
-          walletStatus={walletStatus}
-          publicKey={publicKey}
-          onOpenSettings={() => setIsDrawerOpen(true)}
-        >
-          <ConnectWalletButton
-            onClick={connect}
-            publicKey={publicKey || undefined}
-            isConnecting={isConnecting}
-          />
-        </DashboardHeader>
-
-        <Drawer
-          isOpen={isDrawerOpen}
-          onClose={() => setIsDrawerOpen(false)}
-          title="Technical Details"
-        >
-          <div className="tech-section">
-            <h3 className="tech-section-title">
-              <Network size={14} /> Connectivity
-            </h3>
-            <div className="tech-grid">
-              <div className="tech-item">
-                <div className="tech-label">Notification Service</div>
-                <div className="tech-status">
-                  <span className={`status-dot ${wsConnected ? 'online' : ''}`} />
-                  {wsConnected ? 'Connected (WebSocket)' : 'Connecting...'}
-                </div>
-              </div>
-              <div className="tech-item">
-                <div className="tech-label">Stellar RPC (Soroban)</div>
-                <div className="tech-status">
-                  <span className="status-dot online" />
-                  Mainnet - 🚀 Horizon
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="tech-section">
-            <h3 className="tech-section-title">
-              <ShieldCheck size={14} /> Wallet & Security
-            </h3>
-            <div className="tech-grid">
-              <div className="tech-item">
-                <div className="tech-label">Public Key</div>
-                <div className="tech-value">{publicKey || 'Not connected'}</div>
-              </div>
-              <div className="tech-item">
-                <div className="tech-label">Provider</div>
-                <div className="tech-value">Freighter Wallet</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="tech-section">
-            <h3 className="tech-section-title">
-              <Cpu size={14} /> AI Context
-            </h3>
-            <div className="tech-grid">
-              <div className="tech-item">
-                <div className="tech-label">Active Model</div>
-                <div className="tech-value">OpenClaw (Gemini 1.5 Pro)</div>
-              </div>
-              <div className="tech-item">
-                <div className="tech-label">Knowledge Cutoff</div>
-                <div className="tech-value">May 2024</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="tech-section">
-            <h3 className="tech-section-title">
-              <Zap size={14} /> Protocol Routing
-            </h3>
-            <div className="tech-grid">
-              <div className="tech-item">
-                <div className="tech-label">Primary Aggregator</div>
-                <div className="tech-value">Smasage V1</div>
-              </div>
-              <div className="tech-item">
-                <div className="tech-label">Supported Protocols</div>
-                <div className="tech-value">Blend, Soroswap, Aquarius</div>
-              </div>
-            </div>
-          </div>
-        </Drawer>
-
-        <WalletModalTest
-          isOpen={showInstallModal}
-          onClose={() => setShowInstallModal(false)}
-        />
-        <motion.main
-          className="app-container"
-          aria-label="Portfolio dashboard"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-        >
-          {/* Left Panel - Dashboard */}
-          <GlassPanel className="dashboard-portfolio" variants={itemVariants}>
-            <motion.h1 variants={itemVariants}>Smasage Portfolio</motion.h1>
-            <motion.p
-              className="text-muted portfolio-subtitle"
-              variants={itemVariants}
+      <DashboardLayout
+        header={
+          <DashboardHeader
+            webSocketStatus={webSocketStatus}
+            walletStatus={walletStatus}
+            publicKey={publicKey}
+            onOpenSettings={() => setIsDrawerOpen(true)}
+          >
+            <ConnectWalletButton
+              onClick={connect}
+              publicKey={publicKey || undefined}
+              isConnecting={isConnecting}
+            />
+          </DashboardHeader>
+        }
+        overlays={
+          <>
+            <Drawer
+              isOpen={isDrawerOpen}
+              onClose={() => setIsDrawerOpen(false)}
+              title="Technical Details"
             >
-              Real-time on-chain tracking • Stellar Mainnet 🚀
-            </motion.p>
-
-            {isLoading ? (
-              <motion.div variants={itemVariants}>
-                <PortfolioStatsSkeleton />
-              </motion.div>
-            ) : (
-              <motion.div className="skeleton-fade-in" variants={itemVariants}>
-                <PortfolioStats
-                  totalValue={goalData.currentBalance}
-                  apy={goalData.expectedAPY}
-                  valueChange={12.4}
-                />
-              </motion.div>
-            )}
-
-            {isLoading ? (
-              <motion.div variants={itemVariants}>
-                <GoalTrackerSkeleton />
-              </motion.div>
-            ) : (
-              <motion.div variants={itemVariants}>
-                <GoalTracker
-                  goalName="European Vacation"
-                  targetAmount={goalData.targetAmount}
-                  targetDate={goalData.targetDate}
-                  status={goalStatus}
-                  progressPercentage={progress}
-                  remainingAmount={goalData.targetAmount - goalData.currentBalance}
-                />
-              </motion.div>
-            )}
-
-            <motion.div variants={itemVariants}>
-              <MotionCard className="allocation-list" aria-labelledby="allocation-title">
-                <h3 id="allocation-title" className="allocation-title">
-                <Activity size={18} aria-hidden="true" /> Active Strategy Routes
-              </h3>
-
-              {isLoading ? (
-                <PortfolioChartSkeleton />
-              ) : chartError ? (
-                <ErrorState
-                  title="Chart unavailable"
-                  message="Strategy allocation data failed to load."
-                  onRetry={() => setChartError(false)}
-                />
-              ) : allocations.length === 0 ? (
-                <EmptyState
-                  title="No allocations yet"
-                  message="Connect your wallet or ask the agent to build a strategy."
-                />
-              ) : (
-                <div className="skeleton-fade-in">
-                  <PortfolioChart
-                    allocations={allocations}
-                    showLegend={true}
-                    animated={true}
-                  />
+              <div className="tech-section">
+                <h3 className="tech-section-title">
+                  <Network size={14} /> Connectivity
+                </h3>
+                <div className="tech-grid">
+                  <div className="tech-item">
+                    <div className="tech-label">Notification Service</div>
+                    <div className="tech-status">
+                      <span className={`status-dot ${wsConnected ? 'online' : ''}`} />
+                      {wsConnected ? 'Connected (WebSocket)' : 'Connecting...'}
+                    </div>
+                  </div>
+                  <div className="tech-item">
+                    <div className="tech-label">Stellar RPC (Soroban)</div>
+                    <div className="tech-status">
+                      <span className="status-dot online" />
+                      Mainnet - 🚀 Horizon
+                    </div>
+                  </div>
                 </div>
-              )}
-              </MotionCard>
-            </motion.div>
-          </GlassPanel>
+              </div>
 
-          {/* Right Panel - Chat Agent */}
-          <GlassPanel className="dashboard-chat" variants={itemVariants}>
-            {messages.length === 0 && !isTyping ? (
-              <EmptyState
-                title="No messages yet"
-                message="Ask Smasage to help manage your portfolio or set a goal."
-              />
-            ) : (
-              <ChatInterface
-                messages={messages}
-                isTyping={isTyping}
-                onSendMessage={handleSendMessage}
-                isConnected={wsConnected}
-              />
-            )}
-          </GlassPanel>
-        </motion.main>
-      </>
+              <div className="tech-section">
+                <h3 className="tech-section-title">
+                  <ShieldCheck size={14} /> Wallet & Security
+                </h3>
+                <div className="tech-grid">
+                  <div className="tech-item">
+                    <div className="tech-label">Public Key</div>
+                    <div className="tech-value">{publicKey || 'Not connected'}</div>
+                  </div>
+                  <div className="tech-item">
+                    <div className="tech-label">Provider</div>
+                    <div className="tech-value">Freighter Wallet</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="tech-section">
+                <h3 className="tech-section-title">
+                  <Cpu size={14} /> AI Context
+                </h3>
+                <div className="tech-grid">
+                  <div className="tech-item">
+                    <div className="tech-label">Active Model</div>
+                    <div className="tech-value">OpenClaw (Gemini 1.5 Pro)</div>
+                  </div>
+                  <div className="tech-item">
+                    <div className="tech-label">Knowledge Cutoff</div>
+                    <div className="tech-value">May 2024</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="tech-section">
+                <h3 className="tech-section-title">
+                  <Zap size={14} /> Protocol Routing
+                </h3>
+                <div className="tech-grid">
+                  <div className="tech-item">
+                    <div className="tech-label">Primary Aggregator</div>
+                    <div className="tech-value">Smasage V1</div>
+                  </div>
+                  <div className="tech-item">
+                    <div className="tech-label">Supported Protocols</div>
+                    <div className="tech-value">Blend, Soroswap, Aquarius</div>
+                  </div>
+                </div>
+              </div>
+            </Drawer>
+
+            <WalletModalTest
+              isOpen={showInstallModal}
+              onClose={() => setShowInstallModal(false)}
+            />
+          </>
+        }
+      >
+        <BentoDashboard
+          metrics={metricsSlot}
+          goalProgress={goalSlot}
+          chart={chartSlot}
+          wallet={walletSlot}
+          status={statusSlot}
+          agent={agentSlot}
+        />
+      </DashboardLayout>
     </ErrorBoundary>
   );
 }
