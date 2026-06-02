@@ -3,22 +3,8 @@
  * Client-side calculations for goal tracking and projections
  */
 
-export interface GoalData {
-  currentBalance: number;
-  targetAmount: number;
-  targetDate: string;
-  monthlyContribution: number;
-  expectedAPY: number;
-}
-
-export interface ProjectionResult {
-  status: 'On Track' | 'Ahead' | 'Falling Behind';
-  projectedValue: number;
-  monthsRemaining: number;
-  shortfall: number;
-  surplus: number;
-  progressPercentage: number;
-}
+import type { GoalData, ProjectionResult, GoalStatus } from '../types/domain';
+export type { GoalData, ProjectionResult, GoalStatus };
 
 /**
  * Calculate compound interest (client-side version).
@@ -78,7 +64,7 @@ export function evaluateGoalStatus(goal: GoalData): ProjectionResult {
   );
   
   const threshold = 0.95;
-  let status: 'On Track' | 'Ahead' | 'Falling Behind';
+  let status: GoalStatus;
   
   if (projectedValue >= goal.targetAmount * 1.05) {
     status = 'Ahead';

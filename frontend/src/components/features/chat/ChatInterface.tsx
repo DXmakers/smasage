@@ -4,13 +4,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Bot, CheckCircle2, Send } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
-export interface ChatMessage {
-  id: number;
-  sender: "agent" | "user";
-  text: string;
-  proactive?: boolean;
-  timestamp?: string;
-}
+export type { ChatMessage } from '../../../types/domain';
+import type { ChatMessage } from '../../../types/domain';
 
 export interface ChatInterfaceProps {
   messages: ChatMessage[];
