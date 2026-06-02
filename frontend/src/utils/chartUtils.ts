@@ -3,11 +3,8 @@
  * No external charting dependencies - lightweight & customizable
  */
 
-export interface AssetAllocation {
-  name: string;
-  percentage: number;
-  color: string;
-}
+import type { AssetAllocation } from '../types/domain';
+export type { AssetAllocation };
 
 export interface PieSlice {
   startAngle: number;

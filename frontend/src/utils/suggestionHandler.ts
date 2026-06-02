@@ -3,13 +3,8 @@
  * Utilities for processing user acceptance of proactive suggestions
  */
 
-interface ProactiveSuggestion {
-  type: 'contribution-increase' | 'allocation-rebalance' | 'both';
-  currentContribution: number;
-  suggestedContribution?: number;
-  currentAllocation?: Record<string, number>;
-  suggestedAllocation?: Record<string, number>;
-}
+import type { ProactiveSuggestion } from '../types/domain';
+export type { ProactiveSuggestion };
 
 /**
  * Parse suggestion from proactive message
