@@ -5,3 +5,7 @@ export type { StatusPillProps, StatusVariant } from './StatusPill';
 export { MetricTile } from './MetricTile';
 export type { MetricTileProps, TrendDirection } from './MetricTile';
 export { MotionCard } from './MotionCard';
+export { Modal } from './Modal';
+export type { ModalProps } from './Modal';
+export { Tooltip } from './Tooltip';
+export type { TooltipProps, TooltipPlacement } from './Tooltip';
