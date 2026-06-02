@@ -15,9 +15,9 @@ export interface MetricTileProps {
 }
 
 const trendIcons: Record<TrendDirection, React.ReactNode> = {
-  up: <TrendingUp size={12} aria-hidden="true" />,
-  down: <TrendingDown size={12} aria-hidden="true" />,
-  flat: <Minus size={12} aria-hidden="true" />,
+  up: <TrendingUp size={14} aria-hidden="true" />,
+  down: <TrendingDown size={14} aria-hidden="true" />,
+  flat: <Minus size={14} aria-hidden="true" />,
 };
 
 const trendClasses: Record<TrendDirection, string> = {

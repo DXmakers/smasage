@@ -92,6 +92,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({ isOpen, onClose }) => 
           className="modal-close-icon"
           onClick={onClose}
           aria-label="Close dialog"
+          title="Close dialog"
         >
           <X size={20} aria-hidden="true" />
         </button>

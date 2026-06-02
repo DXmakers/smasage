@@ -1,23 +1,18 @@
-import type { JSX } from "react";
+import { JSX } from "react";
+import { Loader2 } from "lucide-react";
 import { motion, useReducedMotion, type HTMLMotionProps } from "framer-motion";
-import { buttonSpring } from "../../lib/motion";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
-export type ButtonSize = "sm" | "md" | "lg";
+export type ButtonVariant = "primary" | "secondary";
 
 export interface ButtonProps extends HTMLMotionProps<"button"> {
   variant?: ButtonVariant;
-  size?: ButtonSize;
   isLoading?: boolean;
   loadingLabel?: string;
-  icon?: boolean;
 }
 
 export function Button({
   variant = "primary",
-  size = "md",
   isLoading = false,
-  icon = false,
   disabled,
   className,
   children,
@@ -25,29 +20,24 @@ export function Button({
   ...rest
 }: ButtonProps): JSX.Element {
   const prefersReduced = useReducedMotion();
+  const classes = ["btn", `btn-${variant}`, className].filter(Boolean).join(" ");
 
-  const sizeClass = size !== "md" ? `btn-${size}` : "";
-  const iconClass = icon ? "btn-icon" : "";
-  const classes = ["btn", `btn-${variant}`, sizeClass, iconClass, className]
-    .filter(Boolean)
-    .join(" ");
-
-  // Omit motion-conflicting props to avoid type mismatches with motion.button
-  const motionProps: Record<string, unknown> = {
-    ...rest,
-  } as unknown as Record<string, unknown>;
+  // Omit motion-conflicting props from rest to avoid type mismatches with motion.button
+  const motionProps: Record<string, unknown> = { ...rest } as unknown as Record<string, unknown>;
   delete motionProps.onAnimationStart;
   delete motionProps.onDrag;
   delete motionProps.onDragEnd;
   delete motionProps.onDragStart;
   delete motionProps.style;
 
-  const isInteractive = !prefersReduced && !disabled && !isLoading;
-
-  // Tactile spring: hover lifts slightly, tap compresses with spring rebound.
-  const hoverProp = isInteractive ? { scale: 1.03 } : undefined;
-  const tapProp = isInteractive ? { scale: 0.95 } : undefined;
-  const transitionProp = prefersReduced ? { duration: 0.01 } : buttonSpring;
+  // Decorative scale interactions are disabled for reduced-motion users.
+  // The button still shows :active via CSS (transform: scale(0.95)) which is
+  // a CSS-only affordance that browsers can suppress via their own UA sheet.
+  const hoverProp = !prefersReduced && !disabled && !isLoading ? { scale: 1.02 } : undefined;
+  const tapProp = !prefersReduced && !disabled && !isLoading ? { scale: 0.98 } : undefined;
+  const transitionProp = prefersReduced
+    ? { duration: 0.01 }
+    : { duration: 0.15, ease: "easeInOut" };
 
   return (
     <motion.button
@@ -75,31 +65,11 @@ export function Button({
           animate={{ opacity: 1 }}
           transition={prefersReduced ? { duration: 0.01 } : { duration: 0.2 }}
         >
-          <motion.svg
+          <Loader2
             className="btn-loader"
-            viewBox="0 0 24 24"
-            fill="none"
-            focusable="false"
-            // Spinner rotation is functional feedback, not purely decorative —
-            // keep it but slow it down for reduced motion.
-            animate={{ rotate: 360 }}
-            transition={
-              prefersReduced
-                ? { duration: 2, repeat: Infinity, ease: "linear" }
-                : { duration: 0.8, repeat: Infinity, ease: "linear" }
-            }
-          >
-            <circle
-              cx="12"
-              cy="12"
-              r="9"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeDasharray="56.5"
-              strokeDashoffset="18"
-            />
-          </motion.svg>
+            size={18}
+            aria-hidden="true"
+          />
         </motion.span>
       ) : null}
     </motion.button>

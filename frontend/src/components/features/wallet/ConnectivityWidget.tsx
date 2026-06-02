@@ -43,14 +43,14 @@ function getTone(status: WebSocketConnectionStatus | WalletConnectionStatus) {
 
 function StatusIcon({ tone }: { tone: ReturnType<typeof getTone> }) {
   if (tone === "online") {
-    return <CheckCircle2 size={14} aria-hidden="true" />;
+    return <CheckCircle2 size={16} aria-hidden="true" />;
   }
 
   if (tone === "pending") {
-    return <Loader2 className="connectivity-widget-spinner" size={14} aria-hidden="true" />;
+    return <Loader2 className="connectivity-widget-spinner" size={16} aria-hidden="true" />;
   }
 
-  return <AlertTriangle size={14} aria-hidden="true" />;
+  return <AlertTriangle size={16} aria-hidden="true" />;
 }
 
 export function ConnectivityWidget({
@@ -109,7 +109,7 @@ export function ConnectivityWidget({
         <span className="connectivity-widget-summary">{summary}</span>
         <ChevronDown
           className={`connectivity-widget-chevron${isOpen ? " connectivity-widget-chevron--open" : ""}`}
-          size={14}
+          size={16}
           aria-hidden="true"
         />
       </motion.button>

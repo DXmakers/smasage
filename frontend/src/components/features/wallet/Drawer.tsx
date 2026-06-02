@@ -83,6 +83,7 @@ export const Drawer: React.FC<DrawerProps> = ({ isOpen, onClose, title, children
                 className="drawer-close-btn"
                 onClick={onClose}
                 aria-label="Close drawer"
+                title="Close drawer"
               >
                 <X size={20} />
               </button>

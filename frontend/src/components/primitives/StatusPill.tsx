@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { CheckCircle2, AlertTriangle, XCircle, Circle } from "lucide-react";
 
 export type StatusVariant = "success" | "warning" | "error" | "neutral";
 
@@ -17,23 +18,21 @@ const variantClasses: Record<StatusVariant, string> = {
   neutral: "status-pill status-pill--neutral",
 };
 
-const variantIcons: Record<StatusVariant, string> = {
-  success: "●",
-  warning: "▲",
-  error: "✕",
-  neutral: "○",
-};
-
 export function StatusPill({ variant, label, className }: StatusPillProps) {
+  const Icon = {
+    success: CheckCircle2,
+    warning: AlertTriangle,
+    error: XCircle,
+    neutral: Circle,
+  }[variant];
+
   return (
     <span
       className={[variantClasses[variant], className].filter(Boolean).join(" ")}
       role="status"
       aria-label={`Status: ${label}`}
     >
-      <span aria-hidden="true" className="status-pill__icon">
-        {variantIcons[variant]}
-      </span>
+      <Icon size={14} aria-hidden="true" className="status-pill__icon" />
       <span className="status-pill__label">{label}</span>
     </span>
   );

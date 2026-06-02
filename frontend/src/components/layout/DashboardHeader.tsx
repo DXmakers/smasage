@@ -40,6 +40,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             className="btn btn-secondary btn-icon"
             onClick={onOpenSettings}
             aria-label="Open technical settings"
+            title="Open technical settings"
             style={{ padding: '0.72rem', marginLeft: '0.75rem' }}
           >
             <Settings size={20} />
