@@ -31,7 +31,7 @@ import {
   PortfolioChartSkeleton,
 } from "../components/feedback/SkeletonLoader";
 import { WalletModalTest } from "../components/features/wallet/WalletModalTest";
-import { ChatInterface, type ChatMessage } from "../components/features/chat/ChatInterface";
+import { ChatInterface } from "../components/features/chat/ChatInterface";
 import { goalData, initialMessages } from "../config/mockData";
 import toast from 'react-hot-toast';
 import { GoalTracker } from "../components/features/portfolio/GoalTracker";
@@ -42,6 +42,7 @@ import { Network, Cpu, ShieldCheck, Zap } from "lucide-react";
 
 import { motion, useReducedMotion } from "framer-motion";
 import { makeContainerVariants, makeEntranceVariants } from "../lib/motion";
+import type { ChatMessage } from "../types/domain";
 
 export default function Home() {
   const prefersReduced = useReducedMotion();
