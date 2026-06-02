@@ -414,6 +414,88 @@ body {
   border-radius: 12px;
 }
 
+.btn-ghost {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border);
+  color: var(--text-main);
+}
+
+.btn-ghost:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: 12px;
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #ef4444, #f97316);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f87171, #fb923c);
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.45);
+  filter: saturate(1.1);
+}
+
+/* White ring on the danger gradient surface */
+.btn-danger:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color-on-accent);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: 12px;
+}
+
+/* ── Button sizes ───────────────────────────────────────────────── */
+.btn-sm {
+  padding: 0.45rem 0.875rem;
+  font-size: 0.8rem;
+  border-radius: 8px;
+  gap: 0.5rem;
+}
+
+.btn-sm.btn-primary:focus-visible,
+.btn-sm.btn-secondary:focus-visible,
+.btn-sm.btn-ghost:focus-visible,
+.btn-sm.btn-danger:focus-visible {
+  border-radius: 8px;
+}
+
+.btn-lg {
+  padding: 0.9rem 1.75rem;
+  font-size: 1rem;
+  border-radius: 14px;
+  gap: 0.75rem;
+}
+
+.btn-lg.btn-primary:focus-visible,
+.btn-lg.btn-secondary:focus-visible,
+.btn-lg.btn-ghost:focus-visible,
+.btn-lg.btn-danger:focus-visible {
+  border-radius: 14px;
+}
+
+/* ── Icon-only button modifier ──────────────────────────────────── */
+.btn-icon {
+  padding: 0.72rem;
+  aspect-ratio: 1;
+  gap: 0;
+}
+
+.btn-sm.btn-icon {
+  padding: 0.45rem;
+}
+
+.btn-lg.btn-icon {
+  padding: 0.9rem;
+}
+
 .btn-content {
   display: inline-flex;
   align-items: center;
