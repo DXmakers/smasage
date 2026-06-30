@@ -8,6 +8,24 @@ export const cardSpring: Transition = {
   mass: 0.6,
 };
 
+/**
+ * Snappier spring for buttons — faster response than cards so press feedback
+ * is immediate, with a slight overshoot that reads as "springy" not "bouncy".
+ */
+export const buttonSpring: Transition = {
+  type: "spring",
+  stiffness: 500,
+  damping: 40,
+  mass: 0.4,
+};
+
+/** Hover + press variants for the revamp Button primitive. */
+export const buttonVariants: Variants = {
+  rest: { scale: 1 },
+  hover: { scale: 1.03, transition: buttonSpring },
+  tap: { scale: 0.95, transition: buttonSpring },
+};
+
 /** Hover + press variants for clickable dashboard cards. */
 export const cardInteractionVariants: Variants = {
   rest: { scale: 1, y: 0 },
